@@ -31,6 +31,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/v1/auth/**",
+                    "/ingest/v1/**",        // Auth HMAC gérée par SourceRegistry dans le controller
                     "/v3/api-docs/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",

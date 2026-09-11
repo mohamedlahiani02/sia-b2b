@@ -52,4 +52,36 @@ class ArchitectureTest {
 
         rule.check(classes);
     }
+
+    @Test
+    void projection_relay_must_not_import_identity_module() {
+        ArchRule rule = noClasses()
+                .that().resideInAPackage("tn.sia.b2b.projection..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "tn.sia.b2b.identity..",
+                        "tn.sia.b2b.catalog..",
+                        "tn.sia.b2b.pricing..",
+                        "tn.sia.b2b.cart..",
+                        "tn.sia.b2b.ordering.."
+                )
+                .because("Le module projection est une couche technique pure — aucune dépendance vers les modules métier ou identité.");
+
+        rule.check(classes);
+    }
+
+    @Test
+    void projection_consumer_must_not_import_identity_or_catalog_modules() {
+        ArchRule rule = noClasses()
+                .that().resideInAPackage("tn.sia.b2b.projection.consumer..")
+                .should().dependOnClassesThat().resideInAnyPackage(
+                        "tn.sia.b2b.identity..",
+                        "tn.sia.b2b.catalog..",
+                        "tn.sia.b2b.pricing..",
+                        "tn.sia.b2b.cart..",
+                        "tn.sia.b2b.ordering.."
+                )
+                .because("Le consommateur de projection est une couche technique pure sans connaissance des modules métier.");
+
+        rule.check(classes);
+    }
 }
