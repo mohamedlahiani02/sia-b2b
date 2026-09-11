@@ -1,0 +1,30 @@
+# Secrets — ne jamais committer
+.env
+
+# Maven
+backend/target/
+backend/.mvn/
+backend/*.iml
+
+# Node.js (frontend phase 2)
+frontend/node_modules/
+frontend/.next/
+frontend/dist/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Certificats TLS locaux
+infra/nginx/certs/*.pem
+infra/nginx/certs/*.crt
+infra/nginx/certs/*.key
+
+# Logs
+*.log
