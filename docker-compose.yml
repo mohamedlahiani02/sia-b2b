@@ -1,0 +1,125 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: sia-b2b-postgres
+    environment:
+      POSTGRES_DB: ${DB_NAME:-sia_b2b}
+      POSTGRES_USER: ${DB_USER:-sia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-sia_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-sia} -d ${DB_NAME:-sia_b2b}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: sia-b2b-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_LOG_RETENTION_MS: 604800000  # 7 jours
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      CLUSTER_ID: ${KAFKA_CLUSTER_ID:-sia-b2b-cluster-01}
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+      - ./infra/kafka/create-topics.sh:/create-topics.sh:ro
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+    restart: unless-stopped
+
+  kafka-init:
+    image: confluentinc/cp-kafka:7.7.1
+    container_name: sia-b2b-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/create-topics.sh"]
+    volumes:
+      - ./infra/kafka/create-topics.sh:/create-topics.sh:ro
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    container_name: sia-b2b-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sia-b2b-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-sia_b2b}
+      DB_USER: ${DB_USER:-sia}
+      DB_PASSWORD: ${DB_PASSWORD:-sia_secret}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      MAIL_HOST: ${MAIL_HOST:-localhost}
+      MAIL_PORT: ${MAIL_PORT:-25}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      SIA_ADMIN_EMAIL: ${SIA_ADMIN_EMAIL:-admin@sia.tn}
+      APP_BASE_URL: ${APP_BASE_URL:-https://b2b.sia.tn}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: sia-b2b-nginx
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/certs:/etc/nginx/certs:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    name: sia_b2b_postgres
+  kafka_data:
+    name: sia_b2b_kafka
+  redis_data:
+    name: sia_b2b_redis
