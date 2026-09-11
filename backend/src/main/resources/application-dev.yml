@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:sia_b2b}
+    username: ${DB_USER:sia}
+    password: ${DB_PASSWORD:sia}
+
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    tn.sia.b2b: DEBUG
+    org.flywaydb: DEBUG
