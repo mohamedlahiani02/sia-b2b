@@ -75,19 +75,50 @@ Ne génère pas de code de production. Génère uniquement un rapport structuré
 - YME émet-il des événements quand le statut d'une commande change ?
   (commande accusée, confirmée, expédiée, livrée — quel canal : fichier, API, bus, autre ?)
 
-### 6. Capacités techniques de YME (crucial)
+### 6. Capacités techniques de YME (crucial — priorité absolue)
 
-- YME dispose-t-il d'une **API** (REST, SOAP, autre) ? Si oui :
-  - Quelle URL de base ?
-  - Quelle authentification ?
-  - Quels endpoints existent (lister tout) ?
-- YME dispose-t-il d'un **bus d'événements** ou d'un mécanisme de notification ?
-  (webhook, queue, fichier de synchro, base de données partagée, autre ?)
-- Y a-t-il une **base de données accessible directement** (lecture seule) ?
-  Si oui : quel SGBD (SQL Server, Oracle, MySQL, autre) ? Peut-on se connecter ?
-- Y a-t-il des **fichiers d'export** générés par YME ? (CSV, XML, EDI, autre — fréquence, chemin)
-- Y a-t-il des **logs ou journaux** YME exploitables ?
-- Quelle version de YME est installée ? Y a-t-il une documentation technique ?
+> **Contexte important :** YME est confirmé comme un logiciel **desktop Windows legacy des années 90**.
+> Il n'a donc probablement pas d'API REST ni de bus d'événements natif.
+> L'objectif ici est de trouver comment lire ses données depuis l'extérieur.
+
+#### 6.1 Base de données (question n°1)
+
+YME stocke ses données dans une base. Il faut identifier laquelle :
+
+- Cherche dans le dossier d'installation de YME (souvent `C:\YME\`, `C:\Program Files\YME\`, ou sur un lecteur réseau partagé) :
+  - Des fichiers `.mdb` ou `.accdb` → **Microsoft Access**
+  - Des fichiers `.db` ou `.gdb` → **InterBase / Firebird**
+  - Des fichiers `.fdb` → **Firebird**
+  - Des fichiers `.mdf` + `.ldf` → **SQL Server**
+  - Des fichiers `.dbf` → **dBase / FoxPro / Clipper**
+  - Des fichiers `.db4`, `.cdx` → **dBase IV**
+  - Un service Windows nommé `MSSQL*`, `Firebird*`, `MySQL*` → base serveur locale
+
+- Ouvre le **Gestionnaire de tâches** → onglet Services : y a-t-il un service de base de données actif ?
+- Cherche dans les fichiers de config YME (`.ini`, `.cfg`, `.xml`) une chaîne de connexion.
+
+Si tu trouves le type de base, tente de te connecter **en lecture seule** :
+- SQL Server : ouvre **SQL Server Management Studio** (SSMS) → liste toutes les tables
+- Access : ouvre le fichier `.mdb` avec Access ou DBeaver
+- Firebird : utilise **FlameRobin** ou **DBeaver** avec le driver Firebird
+- dBase/DBF : ouvre avec **DBFView** ou DBeaver
+
+**Liste toutes les tables trouvées. Pour chaque table dont le nom évoque un produit, stock, client, commande, tarif : copie la structure (colonnes + types) et 3-5 lignes d'exemple anonymisées.**
+
+#### 6.2 Fichiers d'export (si pas de base accessible)
+
+- YME génère-t-il des fichiers automatiquement ? (CSV, TXT, XML, EDI)
+  - Cherche dans `C:\`, `D:\`, les lecteurs réseau partagés des fichiers avec des noms comme `stock*.csv`, `articles*.txt`, `export*.xml`
+  - Y a-t-il une option "Exporter" dans le menu de YME ?
+  - Y a-t-il un dossier partagé sur le réseau local que YME alimente ?
+- Si oui : quel format ? Quelle fréquence de génération ? Quel chemin ?
+
+#### 6.3 Informations sur le logiciel
+
+- Quel nom exact et quelle version affiche l'écran "À propos" de YME ?
+- Y a-t-il un dossier de documentation ou un manuel dans le dossier d'installation ?
+- Sur quel poste tourne YME : poste unique ou serveur central avec clients légers ?
+- Y a-t-il un administrateur ou un prestataire qui maintient YME ? (peut avoir la doc technique)
 
 ### 7. Volume et performance
 
