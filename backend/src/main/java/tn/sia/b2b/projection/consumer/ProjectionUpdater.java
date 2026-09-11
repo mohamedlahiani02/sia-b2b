@@ -76,6 +76,11 @@ public class ProjectionUpdater {
         upsertProjection("customer_projection", event, "ACTIVE");
     }
 
+    private void applyOrderEvent(ProjectionEvent event) {
+        log.debug("[PROJECTION] Événement commande reçu (pas de projection dédiée) : eventId={} type={}",
+            event.eventId(), event.eventType());
+    }
+
     /**
      * E1-08 — Réception snapshot par tranches.
      * Le payload contient : snapshotId, chunkIndex, totalChunks, items[].
@@ -102,8 +107,9 @@ public class ProjectionUpdater {
     private void applyCompleteSnapshot(String snapshotId, int totalChunks, ProjectionEvent event) throws Exception {
         log.info("[SNAPSHOT] Application snapshot complet snapshotId={}", snapshotId);
         for (int i = 0; i < totalChunks; i++) {
+            int chunkIndex = i;
             String chunkJson = snapshotAccumulator.getChunk(snapshotId, i)
-                .orElseThrow(() -> new IllegalStateException("Tranche " + i + " manquante pour snapshot " + snapshotId));
+                .orElseThrow(() -> new IllegalStateException("Tranche " + chunkIndex + " manquante pour snapshot " + snapshotId));
             Map<?, ?> chunk = objectMapper.readValue(chunkJson, Map.class);
             // Les items sont traités individuellement — structure payload_raw
             // Les colonnes métier seront ajoutées après session YME (TBD-02)
