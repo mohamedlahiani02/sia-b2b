@@ -40,7 +40,7 @@ Les mêmes règles valent pour : la devise et les décimales (TBD-09), le cumul 
 
 1. **YME est la source de vérité.** Aucune donnée maîtresse n'est créée côté plateforme. Aucun endpoint d'écriture sur les projections produit/stock (règle RM-03) — à vérifier par test d'architecture.
 2. **Découplage total.** Aucun appel synchrone vers l'ERP sur le chemin d'une requête utilisateur. ERP arrêté = le site continue à servir le catalogue et à enregistrer des commandes.
-3. **Pull uniquement vers le client.** Rien n'entre dans le réseau du client à notre initiative. Le connecteur du client appelle notre API dans les deux sens : il dépose les événements, il retire les commandes.
+3. **YME est intouchable — saisie manuelle par les opérateurs SIA.** Il n'existe aucun connecteur automatique entre la plateforme et YME. Les commandes validées apparaissent dans une file de saisie du back-office ; un opérateur SIA les saisit manuellement dans YME. YME émet ensuite ses événements habituels (stock, confirmation) vers la plateforme via le bus entrant. Rien n'entre dans le réseau du client à notre initiative.
 4. **Tout événement est rejouable.** Chaque message reçu est conservé brut, identifié, horodaté. Un incident se répare par rejeu, jamais par correction manuelle en base.
 5. **Le stock projeté est une information, pas un engagement.** L'engagement ferme vient de l'ERP à la confirmation.
 6. **Contrat explicite et versionné.** Un schéma inconnu est rejeté et signalé, jamais interprété au mieux.
@@ -52,13 +52,50 @@ connecteur client ─HTTP signé─► passerelle ─► event_inbox (Postgres) 
                                      │                                                    ├─► projection produit
                               202 immédiat                                                ├─► projection stock
                                                                                           └─► supervision
-commande validée ─► outbox_message (Postgres) ─GET/ACK HTTP─► connecteur client ─► ERP
+
+commande validée ─► outbox_message (PENDING_ENTRY)
+                         │
+                    back-office admin : file de saisie (SLA configurable)
+                         │
+                    opérateur SIA saisit manuellement dans YME + renseigne ref doc YME
+                         │
+                    outbox_message (ENTERED) ◄─ horodaté, tracé avec acteur
+                         │
+                    YME traite normalement ─► émet order.confirmed / stock.changed
+                         │
+                    event_inbox ─► projection ─► commande mise à jour (CONFIRMED / REJECTED)
 ```
 
 - **Kafka** (mode KRaft) porte tout le transport interne. Clé de partition = identifiant d'entité, ce qui garantit l'ordre par référence. `enable.auto.commit=false`, offset validé après traitement réussi. Topics de reprise + DLT, 5 tentatives en délai exponentiel.
 - **La passerelle HTTP n'appelle pas Kafka** : elle écrit en base et répond `202`. Un relais (`SKIP LOCKED`, `acks=all`) publie ensuite. Courtier indisponible = réception toujours acceptée.
-- **L'outbox vers l'ERP reste une table Postgres exposée en HTTP**, pas un topic : le connecteur du client n'a besoin que d'un client HTTP. Remise « au moins une fois », donc injection idempotente sur `orderNumber` exigée côté client.
+- **L'outbox est une file de saisie manuelle**, pas un endpoint HTTP pour connecteur. La table `outbox_message` expose les commandes à saisir dans YME. L'opérateur marque "saisi" via le back-office, ce qui horodate et trace l'action dans `audit_log`. TBD-06 (connecteur) : **résolu — pas de connecteur, saisie manuelle.**
 - Idempotence par unicité SQL sur `event_inbox.event_id`. Ordre par comparaison de `entityVersion`. Rétention Kafka 7 j, `event_inbox` 90 j — un rejeu long republie depuis la base, jamais depuis le courtier.
+
+## Machine à états des commandes
+
+```
+DRAFT ──► SUBMITTED ──► VALIDATED ──► PENDING_ENTRY ──► ENTERED_YME ──► CONFIRMED
+                                                │                    └──► PARTIALLY_CONFIRMED
+                                                │                    └──► REJECTED
+                                           CANCELLED (avant ENTERED_YME seulement)
+```
+
+| État | Déclencheur | Acteur |
+|---|---|---|
+| `DRAFT` | Création du panier soumis | Système |
+| `SUBMITTED` | Client soumet la commande | Client B2B |
+| `VALIDATED` | Revalidation stock/prix réussie | Système |
+| `PENDING_ENTRY` | Commande prête à saisir dans YME | Système (automatique après VALIDATED) |
+| `ENTERED_YME` | Opérateur SIA a saisi dans YME + ref doc YME renseignée | Opérateur SIA (back-office) |
+| `CONFIRMED` | YME émet `order.confirmed` (total) | Événement entrant |
+| `PARTIALLY_CONFIRMED` | YME émet `order.confirmed` (partiel) | Événement entrant |
+| `REJECTED` | YME émet `order.rejected` | Événement entrant |
+| `CANCELLED` | Annulation avant `ENTERED_YME` | Client B2B ou opérateur |
+
+Règles :
+- On ne peut pas annuler une commande `ENTERED_YME` ou après — YME a déjà reçu la saisie.
+- Le SLA de saisie est configurable (`ENTRY_SLA_HOURS`, défaut 24 h ouvrées). Une alerte back-office se déclenche si `outbox_message.sla_target_at` est dépassé.
+- Le client B2B voit l'état `PENDING_ENTRY` comme "En cours de traitement" (pas de détail opérationnel interne).
 
 ---
 
@@ -108,11 +145,11 @@ Chaque endpoint publié doit apparaître dans `/v3/api-docs` avec : description,
 ### Ordre de réalisation (lots du backlog)
 | Lot | Contenu | Bloqué ? |
 |---|---|---|
-| 1 | E0 socle + E3-01…06 comptes et rôles | Non |
+| 1 | E0 socle + E3-01…06 comptes et rôles | ✅ Livré |
 | 2 | E1 ingestion + Kafka + E10-01…03 supervision | Non |
-| 3 | E2 projections, E4 catalogue, E5 prix | **Oui — TBD-01 à 04, 09, 10** |
-| 4 | E6 panier, E7 commande, E9-01…04 back-office | Non |
-| 5 | E8 outbox et retours ERP | **Oui — TBD-05, 06** |
+| 3 | E2 projections, E4 catalogue, E5 prix | **Oui — TBD-01 à 04, 09, 10** (réunion client) |
+| 4 | E6 panier, E7 commande, E9-01…04 back-office + **file de saisie manuelle** | Non |
+| 5 | E8 retours ERP (order.confirmed/rejected via events entrants) | **Partiellement — TBD-05** · TBD-06 résolu |
 | 6 | E10-04…06 réconciliation, E11 contenu, E12 recette | Partiellement |
 
 Une story = un commit, avec son identifiant dans le message : `feat(ingestion): E1-03 idempotence par eventId`.
@@ -180,7 +217,7 @@ Lisez chaque fichier avant de construire l'écran correspondant. `components/Chr
 ---
 
 ## Ce qui n'est pas dans le périmètre
-Toute modification de l'ERP · le connecteur côté client (fourniture à arbitrer) · comptabilité et facturation légale · paiement en ligne (TBD-11).
+Toute modification de l'ERP · **le connecteur côté client (TBD-06 : résolu — pas de connecteur, saisie manuelle par les opérateurs SIA)** · comptabilité et facturation légale · paiement en ligne (TBD-11).
 
 ## Commandes
 ```bash
@@ -204,3 +241,4 @@ npx openapi-typescript /v3/api-docs -o src/api/schema.d.ts   # génération clie
 - **Notification back-office** (E3-01) : `audit_log` + email à `SIA_ADMIN_EMAIL` (variable d'environnement).
 - **E3-02 placeholder** : validation `customerSourceRef` accepte toute ref non vide en Lot 1 ; contrainte réelle en Lot 3 après accord client sur TBD-04.
 - **Lots 3 et 5** : démarrage conditionnel à la réunion client (TBD-01 à TBD-06).
+- **TBD-06 résolu — pas de connecteur, saisie manuelle :** Le client ne fait pas confiance à une intégration automatique avec YME et considère son legacy comme intouchable. Les commandes validées apparaissent dans la file de saisie du back-office (`outbox_message`). Un opérateur SIA les saisit manuellement dans YME et enregistre la ref doc YME dans l'application. YME émet ensuite ses événements habituels (`order.confirmed`, `stock.changed`) qui reviennent via le bus d'ingestion existant. Aucun endpoint `/ingest/v1/outbox` exposé. SLA de saisie configurable via `ENTRY_SLA_HOURS` (défaut 24 h ouvrées). Machine à états commande : `VALIDATED → PENDING_ENTRY → ENTERED_YME → CONFIRMED/REJECTED` (voir section dédiée ci-dessus).
