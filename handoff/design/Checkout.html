@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA B2B — Checkout</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/app.css" />
+<style>
+.step-indicator { display: flex; gap: 0; align-items: center; width: 100%; }
+.step-item { flex: 1; display: flex; align-items: center; gap: 12px; }
+.step-circle { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px; border: 2px solid var(--border); background: var(--surface); color: var(--ink-3); flex-shrink: 0; transition: all 0.3s; }
+.step-item.active .step-circle { background: var(--sia-red); border-color: var(--sia-red); color: white; }
+.step-item.done .step-circle { background: var(--ink); border-color: var(--ink); color: white; }
+.step-label { font-size: 12px; font-weight: 600; color: var(--ink-3); letter-spacing: -0.005em; }
+.step-item.active .step-label { color: var(--ink); }
+.step-item.done .step-label { color: var(--ink-2); }
+.step-line { flex: 1; height: 2px; background: var(--border); margin: 0 8px; }
+.step-item.done + .step-line { background: var(--ink); }
+.radio-card { display: flex; align-items: flex-start; gap: 14px; padding: 16px; border: 1.5px solid var(--border); border-radius: 10px; cursor: pointer; transition: all 0.15s; background: var(--surface); }
+.radio-card:hover { border-color: var(--ink-4); }
+.radio-card.selected { border-color: var(--sia-red); background: var(--sia-red-soft); }
+.radio-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border); flex-shrink: 0; margin-top: 2px; display: grid; place-items: center; transition: all 0.15s; }
+.radio-card.selected .radio-dot { border-color: var(--sia-red); }
+.radio-card.selected .radio-dot::after { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--sia-red); }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="data/mockData.js?v=3"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel" src="components/Chrome.jsx"></script>
+<script type="text/babel" src="components/Product.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+function StepIndicator({ step }) {
+  const steps = ['Livraison', 'Mode de livraison', 'Paiement'];
+  return (
+    <div className="step-indicator" style={{ marginBottom: 32 }}>
+      {steps.map((label, i) => (
+        <React.Fragment key={i}>
+          <div className={`step-item ${i === step ? 'active' : ''} ${i < step ? 'done' : ''}`}>
+            <div className="step-circle">{i < step ? <Icon name="check" size={14} /> : i + 1}</div>
+            <div>
+              <div style={{ fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--ink-4)', fontWeight: 600 }}>Étape {i + 1}</div>
+              <div className="step-label">{label}</div>
+            </div>
+          </div>
+          {i < 2 && <div className="step-line" style={{ background: i < step ? 'var(--ink)' : 'var(--border)' }} />}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function Summary({ items, total }) {
+  const remise = total * 0.15;
+  const totalTVA = (total - remise) * 0.19;
+  const totalTTC = total - remise + totalTVA;
+  return (
+    <div className="card" style={{ padding: 20, position: 'sticky', top: 160 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14 }}>Récapitulatif</div>
+      <div style={{ maxHeight: 240, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+        {items.map(i => (
+          <div key={i.id} style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+            <div style={{ width: 40, height: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, display: 'grid', placeItems: 'center', color: 'var(--ink-3)', flexShrink: 0 }}>
+              <Icon name="box" size={14} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600, textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.name}</div>
+              <div className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{i.ref} · ×{i.qty}</div>
+            </div>
+            <div className="mono tnum" style={{ fontWeight: 600, alignSelf: 'flex-start' }}>{(i.price * i.qty).toFixed(3)} DT</div>
+          </div>
+        ))}
+      </div>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-3)' }}>Sous-total</span><span className="mono tnum">{total.toFixed(3)} DT</span></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--sia-red)' }}><span>Remise 15 %</span><span className="mono tnum">−{remise.toFixed(3)} DT</span></div>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ color: 'var(--ink-3)' }}>TVA 19 %</span><span className="mono tnum">{totalTVA.toFixed(3)} DT</span></div>
+      </div>
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+        <span style={{ fontWeight: 700 }}>Total TTC</span>
+        <span className="mono tnum" style={{ fontSize: 20, fontWeight: 700 }}>{totalTTC.toFixed(3)} DT</span>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const { items, count, total } = useCart();
+  const [step, setStep] = useState(0);
+  const [delivery, setDelivery] = useState({ address: '220 Av. des Martyrs, Sfax 3000', contact: 'Mohamed Ben Djemaa', phone: '+216 98 765 432' });
+  const [shipMethod, setShipMethod] = useState('standard');
+  const [payMethod, setPayMethod] = useState('credit-60');
+
+  // Ensure cart has items
+  useEffect(() => {
+    if (Cart.get().length === 0) {
+      const samples = window.SIA_DATA.PRODUCTS.filter(p => p.status.key === 'ok').slice(0, 3);
+      samples.forEach(p => Cart.add(p));
+    }
+  }, []);
+
+  return (
+    <>
+      <AppHeader cartCount={count} />
+      <SessionTimer />
+
+      <div className="page page-tight">
+        <div className="breadcrumb">
+          <a href="Home.html">Accueil</a>
+          <Icon name="chevronRight" size={12} />
+          <a href="Cart.html">Panier</a>
+          <Icon name="chevronRight" size={12} />
+          <span>Validation</span>
+        </div>
+        <h1 className="page-title" style={{ marginBottom: 8 }}>Valider ma commande</h1>
+        <p className="page-sub" style={{ marginBottom: 28 }}>3 étapes rapides avant expédition.</p>
+
+        <StepIndicator step={step} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 24 }}>
+          <div className="card" style={{ padding: 28 }}>
+            {step === 0 && (
+              <div className="fade-in">
+                <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 0 }}>Informations de livraison</h2>
+                <p className="muted" style={{ marginTop: 4, marginBottom: 20, fontSize: 13 }}>Vérifiez ou modifiez l'adresse de livraison.</p>
+
+                <div className="card" style={{ padding: 16, marginBottom: 20, background: 'var(--surface-2)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--ink)', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 12 }}>EB</div>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>ETS BEN DJEMAA & CIE</div>
+                      <div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>CL0013059</div>
+                    </div>
+                  </div>
+                  <span className="badge badge-ok"><span className="dot dot-ok"></span> Client actif</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label className="label">Adresse principale</label>
+                    <input className="input" value={delivery.address} onChange={e => setDelivery({ ...delivery, address: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Contact sur place</label>
+                    <input className="input" value={delivery.contact} onChange={e => setDelivery({ ...delivery, contact: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="label">Téléphone</label>
+                    <input className="input" value={delivery.phone} onChange={e => setDelivery({ ...delivery, phone: e.target.value })} />
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <label className="label">Instructions de livraison (optionnel)</label>
+                    <textarea className="input" rows="2" placeholder="Horaires d'ouverture, étage, code porte…"></textarea>
+                  </div>
+                </div>
+                <div style={{ marginTop: 16, fontSize: 12, color: 'var(--ink-3)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Icon name="info" size={14} /> Besoin de livrer ailleurs ? <a href="#" style={{ color: 'var(--sia-red)', fontWeight: 600 }}>Ajouter une adresse secondaire</a>
+                </div>
+              </div>
+            )}
+
+            {step === 1 && (
+              <div className="fade-in">
+                <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 0 }}>Mode de livraison</h2>
+                <p className="muted" style={{ marginTop: 4, marginBottom: 20, fontSize: 13 }}>Sélectionnez le mode adapté à votre commande.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { key: 'standard', title: 'Livraison standard', desc: 'Livraison en 24 h dans tout le Grand Sfax · À partir de 100 DT offert', price: 'Gratuit', icon: 'truck' },
+                    { key: 'express', title: 'Livraison express', desc: 'Livraison avant 18 h aujourd\'hui (commandes avant 11 h)', price: '25,000 DT', icon: 'sparkle' },
+                    { key: 'pickup', title: 'Retrait atelier SIA', desc: 'Route de Tunis, Km 8 · Disponible sous 2 h', price: 'Gratuit', icon: 'mapPin' },
+                  ].map(opt => (
+                    <label key={opt.key} className={`radio-card ${shipMethod === opt.key ? 'selected' : ''}`}>
+                      <input type="radio" style={{ display: 'none' }} checked={shipMethod === opt.key} onChange={() => setShipMethod(opt.key)} />
+                      <div className="radio-dot"></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Icon name={opt.icon} size={16} style={{ color: shipMethod === opt.key ? 'var(--sia-red)' : 'var(--ink-2)' }} />
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>{opt.title}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>{opt.desc}</div>
+                      </div>
+                      <div className="mono" style={{ fontWeight: 700 }}>{opt.price}</div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
+              <div className="fade-in">
+                <h2 style={{ fontSize: 18, fontWeight: 700, letterSpacing: '-0.02em', marginTop: 0 }}>Paiement</h2>
+                <p className="muted" style={{ marginTop: 4, marginBottom: 20, fontSize: 13 }}>Choisissez un mode de règlement.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {[
+                    { key: 'credit-60', title: 'Crédit partenaire 60 jours', desc: 'Facture à régler sous 60 jours', icon: 'file', badge: 'Partenaire' },
+                    { key: 'bank-transfer', title: 'Virement bancaire', desc: 'IBAN communiqué après validation · Commande expédiée à réception', icon: 'credit' },
+                    { key: 'card', title: 'Carte bancaire', desc: 'Paiement immédiat et sécurisé · Visa, Mastercard, CIB', icon: 'credit' },
+                    { key: 'cash', title: 'Paiement à la livraison', desc: 'Espèces ou chèque à la remise de la commande', icon: 'truck' },
+                  ].map(opt => (
+                    <label key={opt.key} className={`radio-card ${payMethod === opt.key ? 'selected' : ''}`}>
+                      <input type="radio" style={{ display: 'none' }} checked={payMethod === opt.key} onChange={() => setPayMethod(opt.key)} />
+                      <div className="radio-dot"></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <Icon name={opt.icon} size={16} style={{ color: payMethod === opt.key ? 'var(--sia-red)' : 'var(--ink-2)' }} />
+                          <span style={{ fontWeight: 700, fontSize: 14 }}>{opt.title}</span>
+                          {opt.badge && <span className="badge badge-danger">{opt.badge}</span>}
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>{opt.desc}</div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+                <div style={{ marginTop: 18, padding: 14, background: 'var(--surface-2)', borderRadius: 10, fontSize: 12, color: 'var(--ink-2)', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                  <Icon name="info" size={14} style={{ color: 'var(--info)', flexShrink: 0, marginTop: 2 }} />
+                  <div>En validant votre commande, vous acceptez les <a href="#" style={{ color: 'var(--sia-red)', fontWeight: 600 }}>conditions générales de vente</a> de la Sfaxienne Industrielle Automobile.</div>
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+              {step > 0 ? <button className="btn btn-ghost" onClick={() => setStep(step - 1)}><Icon name="chevronLeft" size={14} /> Précédent</button> : <a href="Cart.html" className="btn btn-ghost"><Icon name="chevronLeft" size={14} /> Retour au panier</a>}
+              {step < 2 ? (
+                <button className="btn btn-primary" onClick={() => setStep(step + 1)}>Continuer <Icon name="arrowRight" size={14} /></button>
+              ) : (
+                <a href="OrderConfirmed.html" className="btn btn-primary btn-lg"><Icon name="check" size={14} /> Confirmer la commande</a>
+              )}
+            </div>
+          </div>
+
+          <Summary items={items} total={total} />
+        </div>
+      </div>
+
+      <AppFooter />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

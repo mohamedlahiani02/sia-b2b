@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Product Backlog — SIA B2B</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/spec.css">
+</head>
+<body>
+<nav class="sidebar">
+<div class="sidebar-logo"><div class="name">SIA B2B — Backend</div><div class="sub">Product backlog · v2.0</div></div>
+<div class="sidebar-docs">
+<a href="Backend Spec.html">Spécification &amp; architecture</a>
+<a href="API Contracts.html">Contrats API</a>
+<a class="here" href="Product Backlog.html">Product backlog</a>
+</div>
+<div class="nav-group">Cadre</div>
+<a class="nav-item" href="#lecture">1. Mode de lecture</a>
+<a class="nav-item" href="#journeys">2. Parcours utilisateurs</a>
+<a class="nav-item" href="#epics">3. Carte des epics</a>
+<div class="nav-group">Epics</div>
+<a class="nav-item" href="#e0">E0 — Socle</a>
+<a class="nav-item" href="#e1">E1 — Ingestion</a>
+<a class="nav-item" href="#e2">E2 — Projections</a>
+<a class="nav-item" href="#e3">E3 — Comptes</a>
+<a class="nav-item" href="#e4">E4 — Catalogue</a>
+<a class="nav-item" href="#e5">E5 — Prix</a>
+<a class="nav-item" href="#e6">E6 — Panier</a>
+<a class="nav-item" href="#e7">E7 — Commande</a>
+<a class="nav-item" href="#e8">E8 — Outbox</a>
+<a class="nav-item" href="#e9">E9 — Back-office</a>
+<a class="nav-item" href="#e10">E10 — Supervision</a>
+<a class="nav-item" href="#e11">E11 — Contenu</a>
+<a class="nav-item" href="#e12">E12 — Recette</a>
+<div class="nav-group">Pilotage</div>
+<a class="nav-item" href="#seq">4. Séquencement</a>
+<a class="nav-item" href="#dod">5. Definition of ready / done</a>
+</nav>
+
+<main class="main">
+<div class="eyebrow">Document technique interne</div>
+<h1 class="page-title">Product backlog</h1>
+<p class="page-sub">Backlog backend de la plateforme B2B SIA. Les stories décrivent des comportements vérifiables, avec leurs critères d'acceptation. Les stories dont le contenu dépend des structures de données du logiciel existant sont marquées <b>bloquées</b> et nommément rattachées au point ouvert correspondant : elles ne sont pas estimables avant arbitrage.</p>
+<div class="meta-row">
+<span class="meta-pill">13 epics</span>
+<span class="meta-pill">68 stories</span>
+<span class="meta-pill">Bloquées <b>11</b></span>
+<span class="meta-pill">Réf. spec <b>RM-xx · TBD-xx</b></span>
+</div>
+
+<section id="lecture">
+<h2><span class="num">1</span> Mode de lecture</h2>
+<table>
+<thead><tr><th>Marqueur</th><th>Signification</th></tr></thead>
+<tbody>
+<tr><td><span class="chip chip-p0">P0</span></td><td>Indispensable à la première mise en production. Sans elle, la plateforme n'est pas exploitable.</td></tr>
+<tr><td><span class="chip chip-p1">P1</span></td><td>Attendu par le client mais contournable manuellement au démarrage.</td></tr>
+<tr><td><span class="chip chip-p2">P2</span></td><td>Amélioration. Après mise en production.</td></tr>
+<tr><td><span class="chip chip-tbd">Bloquée</span></td><td>Spécifiable seulement après réponse du client sur le point indiqué. Ni estimée ni démarrée.</td></tr>
+<tr><td><span class="chip chip-rel">Dépend</span></td><td>Story prérequise dans le backlog.</td></tr>
+</tbody>
+</table>
+<p>Les identifiants de story sont stables et servent de référence dans les commits, les tickets et les recettes. Ils ne sont jamais réattribués.</p>
+</section>
+
+<section id="journeys">
+<h2><span class="num">2</span> Parcours utilisateurs</h2>
+<h3>Parcours A — Acheteur professionnel (garage, revendeur)</h3>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>Demande d'accès</strong><span>Il remplit le formulaire professionnel, reçoit un accusé, attend la validation SIA. Il ne voit aucun prix avant activation.</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Recherche</strong><span>Il cherche par référence, par référence constructeur ou par libellé. Il attend une correspondance exacte en premier résultat quand il saisit une référence.</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Vérification</strong><span>Il regarde le prix — le sien, pas un prix public — et la disponibilité, avec l'information de fraîcheur.</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Constitution du panier</strong><span>Souvent sur plusieurs sessions, parfois dix à trente lignes. Le panier doit survivre à la déconnexion.</span></div></div>
+<div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><strong>Soumission</strong><span>Il voit clairement, avant de valider, ce qui a changé depuis la constitution du panier. Il ne découvre jamais un écart après coup.</span></div></div>
+<div class="flow-step"><div class="flow-num">6</div><div class="flow-content"><strong>Suivi</strong><span>Il suit l'avancement jusqu'à la livraison et retrouve l'historique pour recommander à l'identique.</span></div></div>
+</div>
+<h3>Parcours B — Opérateur SIA (traitement des commandes)</h3>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>File du matin</strong><span>Il ouvre la liste des commandes soumises, triées par ancienneté, avec les signaux d'attention visibles sans ouvrir chaque commande.</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Contrôle</strong><span>Il vérifie le client, les quantités face au stock réel, l'encours. Il ajuste une ligne si nécessaire, avec motif.</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Validation</strong><span>Il valide. La commande part vers le logiciel de gestion sans aucune ressaisie.</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Retour</strong><span>Il voit l'accusé du logiciel de gestion et la référence de pièce créée. En cas d'échec, il sait quoi faire, avec le motif exact.</span></div></div>
+</div>
+<h3>Parcours C — Administrateur (exploitation du flux)</h3>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>Coup d'œil quotidien</strong><span>Un écran répond à une seule question : le flux fonctionne-t-il ? Dernier événement reçu, retard, erreurs.</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Incident</strong><span>Une erreur apparaît dans la file. Il lit la cause, consulte le message brut, corrige la source ou rejoue.</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Contrôle de cohérence</strong><span>Il consulte le rapport de réconciliation quotidien et confirme que les projections correspondent au logiciel de gestion.</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Support client</strong><span>À partir d'un numéro de commande, il remonte jusqu'aux événements qui l'ont fait évoluer, et répond sans supposition.</span></div></div>
+</div>
+<h3>Parcours D — Connecteur client (acteur automatisé)</h3>
+<p>Ce n'est pas un humain, mais c'est le consommateur le plus exigeant de l'API : il doit pouvoir tomber en panne, redémarrer, rejouer son historique et rattraper son retard sans jamais créer de doublon ni d'incohérence, et sans intervention humaine. Chaque story de E1 et E8 est écrite de son point de vue.</p>
+</section>
+
+<section id="epics">
+<h2><span class="num">3</span> Carte des epics</h2>
+<table>
+<thead><tr><th>Epic</th><th>Objet</th><th>Stories</th><th>Bloqué par</th></tr></thead>
+<tbody>
+<tr><td class="k">E0</td><td>Socle technique, infrastructure, livraison continue</td><td>6</td><td>—</td></tr>
+<tr><td class="k">E1</td><td>Passerelle d'ingestion, bus Kafka, consommateurs</td><td>8</td><td>TBD-06 (partiel)</td></tr>
+<tr><td class="k">E2</td><td>Projections produit, stock, tarif, client</td><td>7</td><td>TBD-01 à 04</td></tr>
+<tr><td class="k">E3</td><td>Comptes, authentification, rattachement client</td><td>7</td><td>—</td></tr>
+<tr><td class="k">E4</td><td>Catalogue, arborescence, recherche</td><td>6</td><td>TBD-01</td></tr>
+<tr><td class="k">E5</td><td>Résolution de prix et promotions</td><td>5</td><td>TBD-03, 09, 10</td></tr>
+<tr><td class="k">E6</td><td>Panier et revalidation</td><td>6</td><td>—</td></tr>
+<tr><td class="k">E7</td><td>Commande, réservations, machine à états</td><td>8</td><td>—</td></tr>
+<tr><td class="k">E8</td><td>Outbox et retours du logiciel de gestion</td><td>5</td><td>TBD-05</td></tr>
+<tr><td class="k">E9</td><td>Back-office SIA</td><td>6</td><td>—</td></tr>
+<tr><td class="k">E10</td><td>Supervision, réconciliation, rejeu</td><td>6</td><td>—</td></tr>
+<tr><td class="k">E11</td><td>Contenu d'accueil et médias</td><td>4</td><td>TBD-08 (partiel)</td></tr>
+<tr><td class="k">E12</td><td>Recette, performance, mise en production</td><td>4</td><td>TBD-14</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="e0">
+<h2><span class="num">E0</span> Socle technique</h2>
+<div class="epic-head"><span class="code">E0</span><span>Rendre le projet livrable et testable dès la première semaine.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-01</span><span class="story-title">Squelette applicatif modulaire</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que développeur, je veux un projet Spring Boot découpé selon les modules de la spécification, afin que les frontières entre modules soient tenues par la structure et non par la discipline.</div>
+<ul class="ac">
+<li>Packages conformes à l'arborescence de la spec §4.</li>
+<li>Un test d'architecture échoue si un contrôleur accède à un repository, ou si <code>ingestion</code> importe un module métier.</li>
+<li><code>ddl-auto</code> fixé à <code>validate</code>. Aucune création de schéma hors Flyway.</li>
+<li>Profils <code>dev</code>, <code>staging</code>, <code>prod</code> ; aucun secret dans le dépôt.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-02</span><span class="story-title">Base de données et migrations</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que développeur, je veux un schéma versionné par Flyway, afin que tout environnement soit reconstructible à l'identique.</div>
+<ul class="ac">
+<li>Toutes les tables des zones « plateforme » et « intégration » (spec §7.2 et §7.3) créées par migration.</li>
+<li>Les tables de projection sont créées avec leurs seules colonnes techniques ; les colonnes métier viendront d'une migration ultérieure après TBD-01/02.</li>
+<li>Une migration appliquée n'est jamais modifiée ; test de démarrage sur base vierge en CI.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-03</span><span class="story-title">Gestion d'erreur uniforme</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'intégrateur, je veux que toute erreur de l'API ait la même forme, afin de pouvoir la traiter sans cas particulier.</div>
+<ul class="ac">
+<li>Enveloppe unique avec <code>code</code>, <code>message</code>, <code>traceId</code>, <code>details</code>.</li>
+<li>Chaque code du catalogue (spec §10.2) existe en énumération et est couvert par un test.</li>
+<li>Aucune trace technique, requête SQL ou nom de classe dans une réponse.</li>
+<li>Le <code>traceId</code> de la réponse permet de retrouver la requête dans les journaux.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-04</span><span class="story-title">Conteneurisation et déploiement VPS</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'exploitant, je veux déployer une image versionnée sur le VPS en une commande, afin que le déploiement ne soit jamais une opération manuelle.</div>
+<ul class="ac">
+<li>Docker Compose : app, postgres, kafka (KRaft), redis, nginx. Volumes persistants nommés.</li>
+<li>Topics créés de façon déclarative au démarrage (partitions, rétention), jamais à la main.</li>
+<li>TLS terminé au niveau du reverse proxy, redirection HTTP → HTTPS.</li>
+<li>Migrations exécutées avant l'ouverture du port applicatif.</li>
+<li>Retour arrière possible vers l'image précédente sans migration inverse.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-05</span><span class="story-title">Stockage objet et sauvegardes</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'exploitant, je veux des sauvegardes chiffrées vérifiées, afin qu'un incident VPS ne soit pas une perte de données.</div>
+<ul class="ac">
+<li>Sauvegarde quotidienne chiffrée vers S3/R2, rétention 30 jours, WAL archivé.</li>
+<li>Une restauration complète est exécutée et chronométrée avant la mise en production ; la durée est consignée.</li>
+<li>Accès au bucket par clé applicative à privilèges limités, jamais par clé racine.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E0-06</span><span class="story-title">Intégration continue</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'équipe, je veux qu'aucun code non testé ne soit livrable, afin que la régression se voie avant le client.</div>
+<ul class="ac">
+<li>Pipeline : compilation, tests unitaires, tests d'intégration sur PostgreSQL réel (Testcontainers), analyse statique, image Docker.</li>
+<li>Pipeline rouge = pas de déploiement possible.</li>
+<li>Spécification OpenAPI générée et publiée à chaque livraison.</li>
+</ul></div></div>
+</section>
+
+<section id="e1">
+<h2><span class="num">E1</span> Passerelle d'ingestion</h2>
+<div class="epic-head"><span class="code">E1</span><span>Recevoir sans jamais perdre, sans jamais dupliquer, sans jamais interpréter au hasard. Développable dès maintenant : l'enveloppe est notre contrat, le contenu reste opaque.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-01</span><span class="story-title">Réception signée d'un lot d'événements</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur client, je veux déposer un lot d'événements signés et savoir précisément ce qui a été accepté, afin de pouvoir reprendre exactement ce qui a échoué.</div>
+<ul class="ac">
+<li><code>POST /ingest/v1/events</code> accepte 1 à 500 événements, 1 Mo maximum.</li>
+<li>Signature HMAC-SHA256 sur le corps brut vérifiée avant toute lecture du contenu ; horodatage hors fenêtre de 5 min rejeté.</li>
+<li>Réponse <code>202</code> avec un résultat par événement : <code>ACCEPTED</code>, <code>DUPLICATE</code> ou <code>REJECTED</code> avec code et champ fautif.</li>
+<li>Un élément invalide ne fait jamais rejeter le lot entier.</li>
+<li>Source inconnue ou désactivée : <code>403</code>, aucune écriture, alerte levée.</li>
+<li>Accusé sous 50 ms au 95<sup>e</sup> centile sur un lot de 100 événements.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-02</span><span class="story-title">Validation de l'enveloppe</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur, je veux un refus explicite et auto-suffisant quand mon enveloppe est incorrecte, afin de corriger sans solliciter le support.</div>
+<ul class="ac">
+<li>Champs obligatoires contrôlés : <code>eventId</code>, <code>eventType</code>, <code>schemaVersion</code>, <code>source</code>, <code>occurredAt</code>, <code>entityRef</code>.</li>
+<li><code>schemaVersion</code> inconnue → <code>INGEST_SCHEMA_UNSUPPORTED</code>, jamais de traitement approximatif.</li>
+<li><code>eventType</code> hors catalogue → rejet avec la liste des types acceptés.</li>
+<li>Le <code>payload</code> n'est pas validé à ce stade : il est stocké tel quel.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-03</span><span class="story-title">Idempotence</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur, je veux pouvoir rejouer mon historique sans précaution, afin qu'une reprise après panne ne crée aucun effet en double.</div>
+<ul class="ac">
+<li>Contrainte d'unicité sur <code>event_id</code> ; un doublon renvoie <code>DUPLICATE</code> sans retraitement.</li>
+<li>Un lot de 500 événements déjà reçus est traité en moins d'une seconde.</li>
+<li>Test : rejouer 10 000 événements existants ne modifie aucune projection et ne crée aucun mouvement de stock.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-04</span><span class="story-title">Journal brut append-only</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux que tout message reçu soit conservé intact, afin que tout incident se répare par rejeu et non par correction manuelle en base.</div>
+<ul class="ac">
+<li>Écriture dans <code>event_inbox</code> avant toute tentative de projection.</li>
+<li>Le <code>payload</code> est conservé intégralement, sans troncature ni normalisation.</li>
+<li>Aucun code applicatif ne met à jour le payload d'un événement déjà écrit.</li>
+<li>Rétention 90 jours en ligne, puis archivage compressé en stockage objet.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-05</span><span class="story-title">Publication Kafka et consommateurs</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'exploitant, je veux que le traitement soit découplé de la réception par le bus, afin qu'une erreur de projection ou un courtier indisponible ne fasse jamais échouer un dépôt.</div>
+<ul class="ac">
+<li>Le relais publie les événements non encore émis sur le topic de leur type, clé de partition = identifiant d'entité, et ne les marque publiés qu'après accusé <code>acks=all</code>.</li>
+<li>Courtier arrêté : les dépôts continuent de répondre <code>202</code> ; au redémarrage, tout est publié dans l'ordre, sans perte ni doublon.</li>
+<li>Consommateurs <code>@KafkaListener</code> par topic, <code>enable.auto.commit=false</code>, <i>offset</i> validé après traitement réussi.</li>
+<li>Une transaction par événement ; un échec n'affecte pas les autres événements du lot.</li>
+<li>5 tentatives sur topics de reprise, délai exponentiel de 10 s à 5 min, puis DLT ; la partition n'est jamais bloquée.</li>
+<li>Arrêt brutal du processus : reprise au dernier <i>offset</i> validé, aucun événement perdu.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-06</span><span class="story-title">Contrôle d'ordre par entité</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux qu'un événement arrivé en retard ne puisse pas écraser un état plus récent, afin qu'un aléa réseau ne fasse pas régresser le stock affiché.</div>
+<ul class="ac">
+<li><code>entityVersion</code> inférieure ou égale à la version projetée → statut <code>SUPERSEDED</code>, aucune écriture, consigné.</li>
+<li>En l'absence de <code>entityVersion</code>, repli documenté sur <code>occurredAt</code>.</li>
+<li>Test : deux événements de la même référence injectés en ordre inverse aboutissent au même état final quel que soit l'ordre d'arrivée.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-07</span><span class="story-title">Détection de trous de séquence</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux être averti d'un événement manquant, afin de ne pas découvrir un écart de stock plusieurs jours plus tard.</div>
+<ul class="ac">
+<li>Suivi du dernier <code>sequence</code> par source ; un saut incrémente <code>ingest.sequence.gaps</code> et lève une alerte.</li>
+<li><code>GET /ingest/v1/health</code> expose <code>expectedNextSequence</code> pour que le connecteur se rattrape seul.</li>
+<li>Comportement documenté si la source ne fournit pas de séquence.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E1-08</span><span class="story-title">Réception de snapshot par tranches</span><span class="story-meta"><span class="chip chip-p1">P1</span><span class="chip chip-tbd">TBD-02</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur, je veux transmettre l'état complet du stock par tranches, afin de permettre une reprise complète après un incident long.</div>
+<ul class="ac">
+<li>Tranches identifiées par <code>snapshotId</code> ; aucun effet avant réception complète.</li>
+<li>Snapshot incomplet expiré au bout de 2 h, sans impact sur les projections.</li>
+<li>Réception de 48 000 lignes en moins de 5 minutes.</li>
+</ul></div></div>
+</section>
+
+<section id="e2">
+<h2><span class="num">E2</span> Projections</h2>
+<div class="epic-head"><span class="code">E2</span><span>Transformer les événements en données lisibles. <b>Epic entièrement conditionné</b> par la définition des modèles produit et stock avec le client.</span></div>
+<div class="note tbd"><div class="note-title">Blocage assumé</div><p>Les stories E2-01 à E2-05 ne sont pas rédigeables en détail avant TBD-01 à TBD-04. Les écrire par anticipation produirait des critères d'acceptation faux et un travail à refaire. Les intitulés et les invariants techniques, eux, sont arrêtés.</p></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-01</span><span class="story-title">Projection produit</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-01</span></span></div><div class="story-body">
+<div class="as">En tant que visiteur autorisé, je veux voir les produits tels qu'ils sont dans le logiciel de gestion, afin de ne jamais commander sur une information fausse.</div>
+<ul class="ac">
+<li>Invariants déjà arrêtés : <code>payload_raw</code> conservé intégralement ; <code>source_ref</code> repris à l'identique ; <code>source_version</code>, <code>last_event_id</code> et <code>projected_at</code> renseignés à chaque application.</li>
+<li>Critères de contenu : à compléter après TBD-01 (champs affichables, filtrables, obligatoires).</li>
+<li>Réindexation de recherche et invalidation de cache déclenchées par l'application de l'événement.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-02</span><span class="story-title">Projection stock et journal des mouvements</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-02</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux une disponibilité fidèle et datée, afin de savoir ce sur quoi je m'engage.</div>
+<ul class="ac">
+<li>Chaque application écrit une ligne dans <code>stock_movement</code> avec le delta, la quantité résultante et l'<code>event_id</code>.</li>
+<li>Une quantité négative reçue est stockée telle quelle et plafonnée à 0 à l'affichage, avec alerte.</li>
+<li>Critères de contenu (sémantique de quantité, dépôts, unité) : après TBD-02.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-03</span><span class="story-title">Calcul de disponibilité</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-07</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux que la disponibilité affichée tienne compte des commandes en cours, afin de ne pas voir un stock déjà engagé.</div>
+<ul class="ac">
+<li><code>disponible = projeté − réservations actives − tampon de sécurité</code>.</li>
+<li>États <code>IN_STOCK</code> / <code>LOW</code> / <code>OUT</code> systématiquement retournés ; quantité exacte affichée ou non selon la politique TBD-07.</li>
+<li>Au-delà du seuil de retard d'ingestion, la quantité est remplacée par un avertissement explicite (RM-11).</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-04</span><span class="story-title">Projection tarifaire</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-03</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux voir mon prix négocié, afin que la plateforme reflète ma relation commerciale réelle.</div>
+<ul class="ac">
+<li>Aucun prix par défaut : tarif introuvable → <code>PRICE_UNRESOLVED</code> et produit non commandable (RM-04).</li>
+<li>Structure des paliers et remises : après TBD-03.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-05</span><span class="story-title">Projection client</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-04</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur SIA, je veux que chaque compte plateforme soit relié au bon client du logiciel de gestion, afin que prix et commandes soient attribués correctement.</div>
+<ul class="ac">
+<li>Rattachement par <code>customer_source_ref</code> ; activation impossible si la référence n'existe pas en projection.</li>
+<li>Champs projetés : après TBD-04.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-06</span><span class="story-title">Références orphelines</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux qu'un événement portant sur une référence inconnue ne soit ni perdu ni publié, afin de traiter un ordre d'arrivée inattendu sans incident.</div>
+<ul class="ac">
+<li>Création avec <code>status = ORPHANED</code> ; absente du catalogue et de la recherche.</li>
+<li>Listée dans la supervision jusqu'à l'arrivée du <code>product.upserted</code> correspondant, qui la fait basculer <code>ACTIVE</code>.</li>
+<li>Aucune erreur en file d'erreurs pour ce cas : ce n'est pas une anomalie.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E2-07</span><span class="story-title">Colonnes typées extraites du payload</span><span class="story-meta"><span class="chip chip-p1">P1</span><span class="chip chip-tbd">TBD-01/02</span></span></div><div class="story-body">
+<div class="as">En tant que développeur, je veux les champs réellement exploités extraits en colonnes indexées, afin que la recherche reste rapide sur 48 000 références.</div>
+<ul class="ac">
+<li>Extraction pilotée par migration, sans réingestion : reconstructible depuis <code>payload_raw</code>.</li>
+<li>Reconstruction complète des colonnes extraites en moins de 10 minutes.</li>
+</ul></div></div>
+</section>
+
+<section id="e3">
+<h2><span class="num">E3</span> Comptes et authentification</h2>
+<div class="epic-head"><span class="code">E3</span><span>Aucun accès aux prix ni au stock sans compte professionnel validé et rattaché.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-01</span><span class="story-title">Demande d'ouverture de compte</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que professionnel, je veux demander un accès en fournissant mes informations d'entreprise, afin d'obtenir des conditions commerciales.</div>
+<ul class="ac">
+<li>Champs requis : raison sociale, identifiant fiscal, contact, courriel, téléphone, mot de passe, adresse.</li>
+<li>Compte créé en <code>PENDING</code>, sans rattachement client, sans aucun accès catalogue.</li>
+<li>Courriel identique déjà présent → <code>409</code> sans révéler le statut du compte existant.</li>
+<li>Notification au back-office ; limitation à 3 demandes par IP et par heure.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-02</span><span class="story-title">Validation et rattachement par SIA</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-rel">E2-05</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur SIA, je veux activer un compte en le rattachant à un client du logiciel de gestion, afin que ses prix soient les bons dès la première connexion.</div>
+<ul class="ac">
+<li>Activation impossible sans <code>customerSourceRef</code> existant en projection → <code>409 CUSTOMER_REF_UNKNOWN</code>.</li>
+<li>Passage <code>PENDING</code> → <code>ACTIVE</code>, courriel d'activation envoyé, action tracée dans <code>audit_log</code>.</li>
+<li>Refus possible avec motif ; le compte est clos et le demandeur informé.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-03</span><span class="story-title">Session</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'utilisateur, je veux une session sûre et révocable, afin que mes conditions commerciales ne soient pas exposées.</div>
+<ul class="ac">
+<li>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code> ; jeton opaque en Redis, révocable immédiatement.</li>
+<li>Mot de passe haché Argon2id ; message d'échec uniforme ; limitation après 5 échecs sur 15 min.</li>
+<li>Compte <code>PENDING</code> ou <code>SUSPENDED</code> : connexion refusée avec un code distinct et explicite.</li>
+<li>Suspension d'un compte : toutes ses sessions actives sont révoquées sur-le-champ.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-04</span><span class="story-title">Réinitialisation de mot de passe</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'utilisateur, je veux réinitialiser mon mot de passe sans passer par le support, afin de ne pas être bloqué.</div>
+<ul class="ac">
+<li>Réponse identique que le compte existe ou non.</li>
+<li>Jeton à usage unique valable 1 h ; toutes les sessions sont révoquées après changement.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-05</span><span class="story-title">Cloisonnement des données client</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que client, je veux être certain qu'aucun autre client ne peut voir mes prix ni mes commandes, afin de pouvoir utiliser la plateforme en confiance.</div>
+<ul class="ac">
+<li>Toute lecture de prix, panier ou commande contrôle le rattachement de la session.</li>
+<li>Accès à une commande d'un autre client → <code>404</code>, jamais <code>403</code>.</li>
+<li>Un test automatisé tente l'accès croisé sur chaque endpoint concerné et doit échouer à chaque fois.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-06</span><span class="story-title">Rôles back-office</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux distinguer les droits de consultation, de traitement et d'administration, afin que chacun n'ait que ce qui lui est nécessaire.</div>
+<ul class="ac">
+<li>Rôles <code>ADMIN</code>, <code>OPERATOR</code>, <code>VIEWER</code>, appliqués endpoint par endpoint.</li>
+<li><code>VIEWER</code> ne peut valider aucune commande ni modifier aucune donnée.</li>
+<li>Toute action non lecture est écrite dans <code>audit_log</code> avec acteur, cible et différentiel.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E3-07</span><span class="story-title">Profil et adresses</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant que client, je veux tenir à jour mes coordonnées et mes adresses de livraison, sans pouvoir altérer mes conditions commerciales.</div>
+<ul class="ac">
+<li>Contact et téléphone modifiables ; raison sociale, identifiant fiscal, tarif et conditions en lecture seule (RM-03).</li>
+<li>Adresses gérables côté plateforme, une adresse par défaut. Si le logiciel de gestion les détient, le bloc devient une projection en lecture seule (TBD-04).</li>
+</ul></div></div>
+</section>
+
+<section id="e4">
+<h2><span class="num">E4</span> Catalogue et recherche</h2>
+<div class="epic-head"><span class="code">E4</span><span>Retrouver une pièce en quelques secondes, sur 48 000 références.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-01</span><span class="story-title">Liste filtrée avec prix et disponibilité</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-01</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux parcourir le catalogue avec mon prix et la disponibilité sur chaque ligne, afin de décider sans ouvrir chaque fiche.</div>
+<ul class="ac">
+<li>Pagination par curseur ; 24 éléments par défaut, 100 au maximum.</li>
+<li>Chaque élément porte <code>price</code> (avec sa provenance) et <code>availability</code> (avec <code>asOf</code>).</li>
+<li>Bloc <code>freshness</code> présent sur la réponse.</li>
+<li>Moins de 200 ms au 95<sup>e</sup> centile sur un jeu de 48 000 références.</li>
+<li>Filtres disponibles : à arrêter après TBD-01.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-02</span><span class="story-title">Fiche produit</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-01</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux une fiche accessible par la référence que je connais, afin de pouvoir partager et retrouver un lien stable.</div>
+<ul class="ac">
+<li>URL construite sur la référence du logiciel de gestion, jamais sur un identifiant interne.</li>
+<li>Produit désactivé : fiche consultable, <code>orderable: false</code>, absence des listes (RM-05).</li>
+<li>Référence inconnue : <code>404</code> journalisé avec la référence, car ce peut être un retard d'ingestion.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-03</span><span class="story-title">Recherche par référence exacte</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux qu'une référence saisie exactement me donne le bon produit en premier, afin de ne pas parcourir une liste pour un article que je connais déjà.</div>
+<ul class="ac">
+<li>Correspondance exacte sur la référence prioritaire sur toute correspondance textuelle.</li>
+<li>Insensible à la casse, aux espaces et aux tirets.</li>
+<li>Recherche également effectuée sur la référence constructeur si elle existe (TBD-01).</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-04</span><span class="story-title">Recherche plein texte tolérante</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux trouver un article malgré une faute de frappe, afin de ne pas devoir connaître l'orthographe exacte du libellé.</div>
+<ul class="ac">
+<li>Index PostgreSQL <code>tsvector</code> et trigrammes, mis à jour à la projection.</li>
+<li>Moins de 400 ms au 95<sup>e</sup> centile sur 48 000 références.</li>
+<li><code>q</code> de moins de 2 caractères → <code>422</code> ; limitation à 30 requêtes par minute et par session.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-05</span><span class="story-title">Arborescence des familles</span><span class="story-meta"><span class="chip chip-p1">P1</span><span class="chip chip-tbd">TBD-01</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux parcourir par famille, afin de découvrir des articles que je ne sais pas nommer.</div>
+<ul class="ac">
+<li>Arborescence construite depuis les projections, avec compteurs par nœud.</li>
+<li>Cache 5 min, invalidé par événement produit.</li>
+<li>Profondeur et référentiel : après TBD-01.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E4-06</span><span class="story-title">Compatibilité véhicule</span><span class="story-meta"><span class="chip chip-p2">P2</span><span class="chip chip-tbd">TBD-01</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux filtrer par véhicule, afin de ne voir que des pièces qui vont sur le modèle que je répare.</div>
+<ul class="ac">
+<li>Story non estimable avant de savoir si le logiciel de gestion détient des données de compatibilité, sous quelle forme, et avec quel référentiel.</li>
+<li>Si aucune donnée n'existe côté client, la fonction sort du périmètre : elle ne sera pas approximée.</li>
+</ul></div></div>
+</section>
+
+<section id="e5">
+<h2><span class="num">E5</span> Prix et promotions</h2>
+<div class="epic-head"><span class="code">E5</span><span>Un prix est résolu, jamais calculé au hasard ni supposé.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E5-01</span><span class="story-title">Chaîne de résolution du prix</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-03/10</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux voir le prix qui m'est applicable, afin de commander au tarif convenu.</div>
+<ul class="ac">
+<li>Chaîne appliquée dans l'ordre de la spec §6.3 ; la provenance du prix est retournée avec le montant.</li>
+<li>Aucun tarif applicable → <code>PRICE_UNRESOLVED</code>, « prix sur demande », ajout refusé, alerte back-office (RM-04).</li>
+<li>Ordre de cumul et prix plancher : après TBD-10.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E5-02</span><span class="story-title">Paliers quantitatifs</span><span class="story-meta"><span class="chip chip-p1">P1</span><span class="chip chip-tbd">TBD-03</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux que le prix reflète la quantité commandée, afin de retrouver mes conditions habituelles.</div>
+<ul class="ac">
+<li>Palier recalculé à chaque changement de quantité, dans le panier comme sur la fiche.</li>
+<li>Les paliers applicables sont visibles sur la fiche produit.</li>
+<li>Structure des paliers : après TBD-03.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E5-03</span><span class="story-title">Promotions plateforme</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur SIA, je veux accorder une remise par client ou par famille sur la plateforme, afin d'animer commercialement sans modifier le logiciel de gestion.</div>
+<ul class="ac">
+<li>Portées <code>CUSTOMER</code>, <code>FAMILY</code>, <code>PRODUCT</code> ; type pourcentage ou montant ; période de validité.</li>
+<li>Refus si le prix résultant passe sous le plancher (RM-13).</li>
+<li>Une promotion expirée cesse de s'appliquer sans intervention.</li>
+<li>La provenance « promotion plateforme » est visible dans le détail du prix, côté back-office.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E5-04</span><span class="story-title">Fiscalité et arrondis</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-09</span></span></div><div class="story-body">
+<div class="as">En tant que client, je veux des totaux exacts au centime près, afin que la commande corresponde à la facture.</div>
+<ul class="ac">
+<li>Tous les montants en <code>NUMERIC(14,3)</code> et objet <code>Money</code> ; aucun flottant.</li>
+<li>Règle d'arrondi appliquée à un seul endroit du code, couverte par des tests de cas limites.</li>
+<li>Devise, décimales, taux et affichage HT/TTC : après TBD-09.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E5-05</span><span class="story-title">Journal de résolution de prix</span><span class="story-meta"><span class="chip chip-p2">P2</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux savoir pourquoi un client a vu ce prix-là, afin de répondre à une contestation sans supposition.</div>
+<ul class="ac">
+<li>Le détail de la chaîne appliquée est consultable pour une commande passée : étapes, valeurs, horodatage.</li>
+<li>Accessible depuis l'écran de traçabilité de la commande.</li>
+</ul></div></div>
+</section>
+
+<section id="e6">
+<h2><span class="num">E6</span> Panier</h2>
+<div class="epic-head"><span class="code">E6</span><span>Un panier professionnel vit plusieurs jours, sur plusieurs dizaines de lignes, dans un catalogue qui bouge.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-01</span><span class="story-title">Panier persistant</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux retrouver mon panier après déconnexion ou changement d'appareil, afin de le constituer en plusieurs fois.</div>
+<ul class="ac">
+<li>Un panier actif par compte, persistant en base, sans expiration automatique.</li>
+<li>Le prix résolu et son horodatage sont figés sur chaque ligne à l'ajout.</li>
+<li>Ajout d'une référence déjà présente : incrémente la quantité existante au lieu de créer une ligne.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-02</span><span class="story-title">Modification concurrente</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur utilisant deux onglets, je veux ne jamais perdre silencieusement une modification, afin que mon panier reste ce que je crois.</div>
+<ul class="ac">
+<li><code>ETag</code> retourné, <code>If-Match</code> exigé sur les modifications.</li>
+<li>Version périmée → <code>412</code> avec l'état courant du panier.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-03</span><span class="story-title">Contrôles à l'ajout</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux être arrêté tout de suite si un article n'est pas commandable, afin de ne pas le découvrir à la validation.</div>
+<ul class="ac">
+<li>Contrôles : produit actif, prix résolu, disponibilité, conditionnement.</li>
+<li><code>PACKAGING_VIOLATION</code> retourne le multiple attendu et propose une quantité corrigée.</li>
+<li><code>STOCK_INSUFFICIENT</code> retourne la quantité disponible.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-04</span><span class="story-title">Signalement des écarts survenus</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux voir ce qui a changé dans mon panier depuis ma dernière visite, afin d'ajuster avant de commander.</div>
+<ul class="ac">
+<li>Un événement produit ou stock marque les lignes concernées comme à revalider.</li>
+<li><code>GET /cart</code> retourne les <code>warnings</code> par ligne : prix changé, produit retiré, disponibilité réduite.</li>
+<li>Aucune modification automatique du panier : le client décide.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-05</span><span class="story-title">Revalidation avant commande</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux une confirmation explicite de l'état de mon panier avant de soumettre, afin de ne jamais commander sur une information périmée.</div>
+<ul class="ac">
+<li><code>POST /cart/validate</code> est en lecture seule et retourne la liste complète des écarts.</li>
+<li>Un <code>revalidationToken</code> valable 10 min scelle l'état vu par le client.</li>
+<li>Soumission sans jeton valide → <code>409 CART_REVALIDATION_REQUIRED</code> (RM-07).</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E6-06</span><span class="story-title">Import de panier par liste de références</span><span class="story-meta"><span class="chip chip-p2">P2</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur professionnel, je veux coller une liste de références et de quantités, afin de constituer un panier de trente lignes en une opération.</div>
+<ul class="ac">
+<li>Collage de lignes <code>référence;quantité</code> ; traitement ligne par ligne.</li>
+<li>Compte rendu par ligne : ajoutée, quantité ajustée, ou refusée avec motif.</li>
+<li>Une ligne en erreur n'empêche pas l'ajout des autres.</li>
+</ul></div></div>
+</section>
+
+<section id="e7">
+<h2><span class="num">E7</span> Commande et cycle de vie</h2>
+<div class="epic-head"><span class="code">E7</span><span>La machine à états est le cœur du métier. Toute transition est tracée, motivée, rejouable.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-01</span><span class="story-title">Soumission idempotente</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-rel">E6-05</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux qu'un double-clic ou un réseau instable ne crée jamais deux commandes, afin de ne pas être livré deux fois.</div>
+<ul class="ac">
+<li><code>Idempotency-Key</code> obligatoire, conservée 24 h ; même clé → même réponse, aucune commande supplémentaire.</li>
+<li>Numéro de commande lisible et séquentiel attribué à la création.</li>
+<li>Panier vidé, notification back-office émise après commit.</li>
+<li>Aucun appel vers le logiciel de gestion à ce stade.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-02</span><span class="story-title">Réservations locales</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux que ce que je commande ne soit pas revendu à un autre client du site avant traitement, afin de limiter les mauvaises surprises.</div>
+<ul class="ac">
+<li>Réservation posée par ligne à la soumission, valable 48 h (RM-08).</li>
+<li>La disponibilité affichée aux autres clients en tient compte immédiatement.</li>
+<li>Verrou pessimiste sur les lignes concernées : deux soumissions simultanées sur le dernier article ne peuvent pas réserver la même unité deux fois.</li>
+<li>Expiration balayée chaque minute ; la commande reste soumise et est signalée dans le back-office.</li>
+<li>La réservation n'engage jamais le logiciel de gestion (P5).</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-03</span><span class="story-title">Machine à états centralisée</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que développeur, je veux qu'aucune transition ne puisse être écrite hors du service dédié, afin qu'un état incohérent soit impossible par construction.</div>
+<ul class="ac">
+<li>Transitions autorisées uniquement celles de la spec §9 ; toute autre → <code>409 ORDER_INVALID_TRANSITION</code> avec l'état courant et les transitions possibles.</li>
+<li>Chaque transition écrit une ligne <code>order_state_log</code> avec acteur, motif et <code>event_id</code> le cas échéant.</li>
+<li>Aucune écriture directe de la colonne <code>state</code> ailleurs que dans <code>OrderService</code> — vérifié par test d'architecture.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-04</span><span class="story-title">Suivi et historique client</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux suivre ma commande et retrouver mes commandes passées, afin de ne pas devoir téléphoner pour savoir où elles en sont.</div>
+<ul class="ac">
+<li>Détail avec chronologie issue de <code>order_state_log</code> : le client voit la même vérité que le support.</li>
+<li><code>quantityConfirmed</code> par ligne dès la confirmation ; <code>null</code> avant.</li>
+<li>Les lignes conservent le libellé et le prix du jour de la commande (RM-14).</li>
+<li>Historique strictement borné au rattachement client.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-05</span><span class="story-title">Annulation client</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux annuler une commande pas encore traitée, afin de corriger une erreur sans appeler SIA.</div>
+<ul class="ac">
+<li>Annulation possible uniquement en <code>SUBMITTED</code> (RM-09) ; sinon <code>409 ORDER_NOT_CANCELLABLE</code> avec orientation vers le contact SIA.</li>
+<li>Réservations libérées, back-office notifié.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-06</span><span class="story-title">Confirmation partielle</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-05</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux savoir précisément ce qui est confirmé et ce qui ne l'est pas, afin de m'organiser sans attendre la livraison.</div>
+<ul class="ac">
+<li><code>PARTIALLY_CONFIRMED</code> est un état normal, pas une erreur (RM-10).</li>
+<li>Écart affiché ligne par ligne, réservations ajustées, client et back-office notifiés.</li>
+<li>Format du retour de confirmation : après TBD-05.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-07</span><span class="story-title">Recommander à l'identique</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux repartir d'une commande passée, afin de gagner du temps sur mes réapprovisionnements réguliers.</div>
+<ul class="ac">
+<li>Le panier est rempli aux prix et disponibilités du jour, jamais à ceux de la commande d'origine.</li>
+<li>Les références devenues indisponibles sont listées explicitement dans <code>skipped</code>.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E7-08</span><span class="story-title">Notifications transactionnelles</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux être informé des étapes qui me concernent, afin de ne pas surveiller le site.</div>
+<ul class="ac">
+<li>Courriels aux transitions : soumission, validation, refus, confirmation (totale ou partielle), expédition.</li>
+<li>Envoi déclenché après commit, rejouable, jamais bloquant pour la transaction métier.</li>
+<li>Un échec d'envoi est journalisé et visible dans le back-office.</li>
+</ul></div></div>
+</section>
+
+<section id="e8">
+<h2><span class="num">E8</span> Outbox et retours du logiciel de gestion</h2>
+<div class="epic-head"><span class="code">E8</span><span>La commande est déposée, jamais poussée. Aucun flux entrant dans le réseau du client.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E8-01</span><span class="story-title">Dépôt transactionnel à la validation</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur SIA, je veux qu'une commande validée soit forcément transmise, afin qu'aucune commande ne se perde entre les deux systèmes.</div>
+<ul class="ac">
+<li>Transition <code>VALIDATED</code> et écriture du message d'outbox dans la même transaction.</li>
+<li>Test : un échec provoqué après la transition laisse la base sans commande validée <b>et</b> sans message.</li>
+<li>Une requête de contrôle vérifie en permanence qu'il n'existe aucune commande validée sans message.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E8-02</span><span class="story-title">Retrait avec bail</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-05</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur, je veux retirer les commandes en attente sans risquer qu'un autre appel les traite en parallèle, afin de ne créer aucun doublon dans le logiciel de gestion.</div>
+<ul class="ac">
+<li>Les messages servis passent <code>LEASED</code> jusqu'à échéance et ne sont pas re-servis pendant le bail.</li>
+<li>Sans accusé avant échéance, retour en <code>PENDING</code> avec <code>deliveryCount</code> incrémenté.</li>
+<li>Structure du <code>payload</code> : après TBD-05.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E8-03</span><span class="story-title">Accusé et suite donnée</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que connecteur, je veux déclarer le résultat de l'injection, afin que la plateforme reflète la réalité du logiciel de gestion.</div>
+<ul class="ac">
+<li><code>APPLIED</code> avec <code>erpDocumentRef</code> → commande en <code>ACKNOWLEDGED</code>, référence enregistrée.</li>
+<li><code>FAILED</code> avec motif → message <code>FAILED</code>, alerte back-office, <b>aucune nouvelle tentative automatique</b> : un refus métier demande une décision humaine.</li>
+<li>Accusé sur un message déjà acquitté : <code>200</code> (idempotent) ; message inconnu : <code>404</code>.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E8-04</span><span class="story-title">Traitement des événements de retour</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-05</span></span></div><div class="story-body">
+<div class="as">En tant qu'acheteur, je veux que l'avancement réel dans le logiciel de gestion se reflète sur le site, afin de suivre ma commande sans appeler.</div>
+<ul class="ac">
+<li><code>order.acknowledged</code>, <code>order.confirmed</code>, <code>order.rejected</code>, <code>order.statusChanged</code> traités par la même passerelle que les autres événements.</li>
+<li>Un événement portant sur une commande inconnue part en file d'erreurs avec un motif clair, jamais ignoré silencieusement.</li>
+<li>Un retour contradictoire avec l'état courant est refusé par la machine à états et signalé.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E8-05</span><span class="story-title">Surveillance de l'outbox</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux être averti si une commande validée n'est pas retirée, afin qu'un connecteur en panne ne bloque pas les livraisons sans qu'on le sache.</div>
+<ul class="ac">
+<li>Métrique <code>outbox.pending.age.seconds</code>, alerte au-delà de 15 min.</li>
+<li>Écran listant les messages en attente avec âge et nombre de remises.</li>
+</ul></div></div>
+</section>
+
+<section id="e9">
+<h2><span class="num">E9</span> Back-office SIA</h2>
+<div class="epic-head"><span class="code">E9</span><span>Traiter la journée sans ouvrir le logiciel de gestion, et sans ressaisie.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-01</span><span class="story-title">File de traitement avec signaux</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux voir d'un coup d'œil les commandes qui demandent attention, afin de traiter d'abord ce qui bloque.</div>
+<ul class="ac">
+<li>Liste filtrable par état, client et période ; compteurs par état.</li>
+<li>Signaux calculés visibles sans ouvrir la commande : écart de stock, réservation proche d'expirer, dépassement d'encours, client non rattaché.</li>
+<li>Tri par ancienneté de soumission par défaut.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-02</span><span class="story-title">Validation et refus</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-rel">E8-01</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux valider ou refuser en une action, afin de traiter un volume quotidien sans friction.</div>
+<ul class="ac">
+<li>Validation : idempotente, dépôt en outbox dans la même transaction, client notifié.</li>
+<li>Refus : motif obligatoire, transmis au client, réservations libérées.</li>
+<li><code>VIEWER</code> ne peut ni valider ni refuser.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-03</span><span class="story-title">Ajustement de ligne avant validation</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux réduire une quantité au vu du stock réel, afin d'envoyer au logiciel de gestion une commande servable.</div>
+<ul class="ac">
+<li>Possible uniquement en <code>SUBMITTED</code>, motif obligatoire.</li>
+<li>Le prix unitaire n'est jamais modifiable par cette voie.</li>
+<li>Ajustement tracé dans <code>order_state_log</code> et notifié au client.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-04</span><span class="story-title">Traçabilité d'une commande</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux remonter d'un numéro de commande jusqu'aux événements qui l'ont fait évoluer, afin de répondre à un client sans supposition.</div>
+<ul class="ac">
+<li>Un écran réunit : journal d'états, messages d'outbox avec compteurs de remise, événements liés.</li>
+<li>Chaque événement lié est ouvrable sur son payload brut ; l'accès est tracé.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-05</span><span class="story-title">Gestion des comptes clients</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-rel">E3-02</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux valider, rattacher et suspendre des comptes, afin de maîtriser qui accède aux conditions commerciales.</div>
+<ul class="ac">
+<li>Liste filtrable par statut et par présence de rattachement.</li>
+<li>Activation exigeant une référence client existante en projection.</li>
+<li>Suspension révoquant immédiatement les sessions actives.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E9-06</span><span class="story-title">Inspection des projections</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux vérifier ce que la plateforme sait d'une référence, afin de distinguer un problème de données d'un problème de site.</div>
+<ul class="ac">
+<li>Recherche par référence : état, version source, date de projection, dernier événement appliqué, stock projeté.</li>
+<li><b>Lecture seule</b> : aucun endpoint d'écriture sur les projections produit et stock (RM-03).</li>
+<li>Filtres <code>ORPHANED</code> et « non mis à jour depuis » disponibles.</li>
+</ul></div></div>
+</section>
+
+<section id="e10">
+<h2><span class="num">E10</span> Supervision et réconciliation</h2>
+<div class="epic-head"><span class="code">E10</span><span>Ce qui rend le flux vérifiable. C'est aussi la base du support après mise en production.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-01</span><span class="story-title">Tableau de santé des flux</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux répondre en cinq secondes à la question « le flux fonctionne-t-il ? », afin de ne pas avoir à fouiller des journaux.</div>
+<ul class="ac">
+<li>Un écran affiche : dernier événement par type, retard courant, silence par source, volumes sur 24 h, nombre d'erreurs.</li>
+<li>Un état global lisible : OK, avertissement, critique — avec le motif.</li>
+<li>Rafraîchissement automatique sans rechargement.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-02</span><span class="story-title">Journal des événements consultable</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux retrouver tous les événements d'une référence sur une période, afin d'expliquer un écart constaté.</div>
+<ul class="ac">
+<li>Recherche par type, référence, état et période ; pagination par curseur.</li>
+<li>Payload brut consultable ; consultation écrite dans <code>audit_log</code>.</li>
+<li>Moins de 500 ms sur un journal de 2 millions de lignes.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-03</span><span class="story-title">File d'erreurs et rejeu</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux rejouer un événement en échec après correction, afin de réparer sans toucher la base.</div>
+<ul class="ac">
+<li>Liste des événements <code>DEAD</code> (topics DLT) avec cause et nombre de tentatives.</li>
+<li>Rejeu unitaire ou par lot ; rejeu par référence et par période également possible.</li>
+<li>Le rejeu réinjecte l'événement conservé sans le modifier, et ne peut pas faire régresser une projection plus récente.</li>
+<li>Chaque rejeu est tracé avec son auteur.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-04</span><span class="story-title">Réconciliation quotidienne</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-rel">E1-08</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux une preuve quotidienne que les projections correspondent au logiciel de gestion, afin de garantir la fiabilité au dirigeant.</div>
+<ul class="ac">
+<li>Comparaison du dernier snapshot avec les projections, ligne à ligne.</li>
+<li>Rapport horodaté : lignes comparées, écarts, détail par référence, stocké en objet et téléchargeable.</li>
+<li>Les écarts sont corrigés par application du snapshot, qui fait foi, et notifiés.</li>
+<li>Objectif : zéro écart non expliqué sur un cycle de 7 jours avant mise en production.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-05</span><span class="story-title">Alertes</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-13</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux être prévenu avant que le client ne s'en aperçoive, afin d'intervenir à temps.</div>
+<ul class="ac">
+<li>Déclencheurs : retard supérieur au seuil, silence d'une source, événement en file d'erreurs, trou de séquence, outbox en attente, écart de réconciliation, retard de consommation Kafka, relais bloqué.</li>
+<li>Une alerte porte le motif, la métrique et la valeur constatée — jamais un message générique.</li>
+<li>Canal et seuils par flux : après TBD-13.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E10-06</span><span class="story-title">Historique des mouvements de stock</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'opérateur, je veux voir l'évolution du stock d'une référence, afin de comprendre une rupture.</div>
+<ul class="ac">
+<li>Liste des variations avec delta, quantité résultante, cause et événement d'origine.</li>
+<li>Filtrable par référence et période.</li>
+</ul></div></div>
+</section>
+
+<section id="e11">
+<h2><span class="num">E11</span> Contenu et médias</h2>
+<div class="epic-head"><span class="code">E11</span><span>Ce que SIA maîtrise côté plateforme, sans toucher au logiciel de gestion.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E11-01</span><span class="story-title">Sections de la page d'accueil</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux composer la page d'accueil sans développement, afin d'animer la plateforme au rythme commercial.</div>
+<ul class="ac">
+<li>Types de blocs : mise en avant, bandeau, sélection de produits, texte enrichi.</li>
+<li>Ordonnancement, publication et dépublication sans déploiement.</li>
+<li>Une sélection de produits référence des articles par leur référence source ; les références disparues sont ignorées à l'affichage et signalées.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E11-02</span><span class="story-title">Envoi de médias par URL signée</span><span class="story-meta"><span class="chip chip-p1">P1</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux téléverser des images sans ralentir la plateforme, afin d'illustrer le catalogue.</div>
+<ul class="ac">
+<li>Envoi direct vers le stockage objet par URL signée valable 15 min ; le binaire ne traverse pas l'application.</li>
+<li>Types et taille maximale contrôlés à l'émission de l'URL.</li>
+<li>Confirmation post-envoi enregistrant les métadonnées et générant les variantes (miniature, fiche, zoom).</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E11-03</span><span class="story-title">Rattachement des médias aux références</span><span class="story-meta"><span class="chip chip-p1">P1</span><span class="chip chip-tbd">TBD-08</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux associer une image à une référence, afin que la fiche produit soit exploitable.</div>
+<ul class="ac">
+<li>Rattachement par référence source ; une image par défaut par produit.</li>
+<li>Si le logiciel de gestion détient les images : mode de transmission et de rattachement à définir (TBD-08).</li>
+<li>Produit sans image : visuel de remplacement neutre, jamais une case vide.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E11-04</span><span class="story-title">Import de médias en lot</span><span class="story-meta"><span class="chip chip-p2">P2</span><span class="chip chip-tbd">TBD-08</span></span></div><div class="story-body">
+<div class="as">En tant qu'administrateur, je veux téléverser des centaines d'images nommées par référence, afin d'illustrer le catalogue sans opération unitaire.</div>
+<ul class="ac">
+<li>Rattachement automatique par convention de nommage.</li>
+<li>Compte rendu : rattachées, non rattachées, références inconnues.</li>
+</ul></div></div>
+</section>
+
+<section id="e12">
+<h2><span class="num">E12</span> Recette et mise en production</h2>
+<div class="epic-head"><span class="code">E12</span><span>Prouver que le flux tient avant de basculer.</span></div>
+<div class="story"><div class="story-head"><span class="story-id">E12-01</span><span class="story-title">Jeu d'événements de test</span><span class="story-meta"><span class="chip chip-p0">P0</span><span class="chip chip-tbd">TBD-01/02/14</span></span></div><div class="story-body">
+<div class="as">En tant qu'équipe, je veux rejouer un jeu d'événements issu des données réelles du client, afin de valider l'intégration sans toucher sa production.</div>
+<ul class="ac">
+<li>Jeu constitué depuis les exports réels fournis par le client, anonymisé si nécessaire.</li>
+<li>Rejouable en une commande sur l'environnement de recette.</li>
+<li>Couvre les cas limites de la spec §10.3 : désordre, doublon, référence orpheline, quantité négative, snapshot contradictoire.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E12-02</span><span class="story-title">Tenue en charge</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant que dirigeant, je veux la garantie chiffrée que la plateforme tient sa charge, afin de m'engager auprès de mes clients.</div>
+<ul class="ac">
+<li>Catalogue de 48 000 références et 12 mois d'historique d'événements simulés.</li>
+<li>Cibles de la spec §12 mesurées et consignées : accusé d'ingestion, bout en bout, fiche, recherche, soumission.</li>
+<li>Test de rafale : 10 000 événements en 5 minutes sans perte ni retard supérieur à 60 s, retard de consommation Kafka revenu à zéro en fin de rafale.</li>
+<li>Test de coupure du courtier pendant 10 minutes : aucune réception refusée, rattrapage complet au rétablissement.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E12-03</span><span class="story-title">Exercice de reprise</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'exploitant, je veux avoir déjà répété la reprise après incident, afin de ne pas l'improviser le jour venu.</div>
+<ul class="ac">
+<li>Restauration complète depuis sauvegarde, exécutée et chronométrée ; durée consignée.</li>
+<li>Rejeu du journal d'événements puis application du dernier snapshot ; état final vérifié par réconciliation.</li>
+<li>Les messages d'outbox non acquittés sont bien re-servis après reprise.</li>
+</ul></div></div>
+<div class="story"><div class="story-head"><span class="story-id">E12-04</span><span class="story-title">Documentation d'exploitation et du connecteur</span><span class="story-meta"><span class="chip chip-p0">P0</span></span></div><div class="story-body">
+<div class="as">En tant qu'exploitant et en tant qu'intégrateur du connecteur, je veux une documentation suffisante pour opérer sans nous, afin que le projet ne dépende pas d'une seule personne.</div>
+<ul class="ac">
+<li>Spécification OpenAPI publiée et à jour.</li>
+<li>Guide du connecteur : enveloppe, signature, codes de rejet, idempotence, rattrapage de séquence, exigence d'idempotence sur <code>orderNumber</code>.</li>
+<li>Procédures d'exploitation : déploiement, retour arrière, restauration, rejeu, lecture des alertes.</li>
+</ul></div></div>
+</section>
+
+<section id="seq">
+<h2><span class="num">4</span> Séquencement</h2>
+<p>Découpage dicté par les dépendances, pas par le confort. Les lots 1 et 2 sont intégralement réalisables <b>avant</b> tout arbitrage sur les modèles de données : c'est ce qui permet de démarrer sans attendre le client.</p>
+<table>
+<thead><tr><th>Lot</th><th>Contenu</th><th>Prérequis client</th><th>Démontrable</th></tr></thead>
+<tbody>
+<tr><td><b>Lot 1</b><br>Socle</td><td>E0 complet · E3-01 à E3-06</td><td>Aucun</td><td>Environnement déployé, comptes et rôles opérationnels, restauration prouvée</td></tr>
+<tr><td><b>Lot 2</b><br>Flux événementiel</td><td>E1 complet · E10-01 à E10-03</td><td>Aucun (payload opaque)</td><td>Dépôt d'événements simulés, publication Kafka, idempotence, désordre, DLT, rejeu, tableau de santé</td></tr>
+<tr><td><b>Lot 3</b><br>Projections</td><td>E2 · E4 · E5</td><td><b>TBD-01 à 04, 09, 10</b></td><td>Catalogue réel, prix client, disponibilité datée, recherche</td></tr>
+<tr><td><b>Lot 4</b><br>Commande</td><td>E6 · E7 · E9-01 à E9-04</td><td>Aucun pour la partie plateforme</td><td>Parcours complet du panier à la commande validée</td></tr>
+<tr><td><b>Lot 5</b><br>Intégration retour</td><td>E8 · E7-06 · E9-05/06</td><td><b>TBD-05, 06</b></td><td>Commande injectée dans le logiciel de gestion, confirmation remontée</td></tr>
+<tr><td><b>Lot 6</b><br>Fiabilité</td><td>E10-04 à E10-06 · E11 · E12</td><td><b>TBD-08, 13, 14</b></td><td>Réconciliation à zéro écart sur 7 jours, tenue en charge, reprise répétée</td></tr>
+</tbody>
+</table>
+<div class="note warn"><div class="note-title">Point de blocage à surveiller</div><p>Le lot 3 ne peut pas démarrer sans TBD-01 à TBD-04. Si ces réponses tardent, les lots 4 (hors résolution de prix) et 2 absorbent le retard, mais la durée totale s'allonge d'autant : c'est le seul chemin critique qui ne dépend pas de nous.</p></div>
+</section>
+
+<section id="dod">
+<h2><span class="num">5</span> Definition of ready / done</h2>
+<div class="grid g2">
+<div class="box"><div class="box-title">Prête à être démarrée</div><div class="box-items">Aucun point TBD ouvert la concernant<br>Critères d'acceptation vérifiables sans interprétation<br>Contrat API arrêté quand elle en expose un<br>Effets sur les projections et les événements identifiés<br>Cas d'erreur nommés avec leur code</div></div>
+<div class="box"><div class="box-title">Terminée</div><div class="box-items">Tous les critères d'acceptation couverts par des tests automatisés<br>Tests d'intégration sur PostgreSQL réel pour tout ce qui touche la base<br>Codes d'erreur conformes au catalogue<br>Métriques et journalisation en place<br>OpenAPI à jour<br>Migration Flyway livrée avec le code<br>Revue par un autre développeur<br>Démontrable sur l'environnement de recette</div></div>
+</div>
+<h3>Exigences transverses, applicables à chaque story</h3>
+<ul>
+<li>Aucun endpoint d'écriture sur les projections produit et stock (RM-03) — vérifié par test d'architecture.</li>
+<li>Aucun appel synchrone vers le logiciel de gestion sur un chemin de requête utilisateur (P2).</li>
+<li>Toute écriture non réversible est idempotente et tracée.</li>
+<li>Toute donnée affichée issue d'une projection est accompagnée de sa date de mise à jour.</li>
+<li>Aucune valeur métier codée en dur qui devrait venir du client : en l'absence de réponse, la story reste bloquée.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>

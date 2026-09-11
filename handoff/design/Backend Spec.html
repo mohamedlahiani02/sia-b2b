@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Spécification Backend — SIA B2B</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/spec.css">
+</head>
+<body>
+<nav class="sidebar">
+<div class="sidebar-logo"><div class="name">SIA B2B — Backend</div><div class="sub">Spécification · v2.0</div></div>
+<div class="sidebar-docs">
+<a class="here" href="Backend Spec.html">Spécification &amp; architecture</a>
+<a href="API Contracts.html">Contrats API</a>
+<a href="Product Backlog.html">Product backlog</a>
+</div>
+<div class="nav-group">Cadre</div>
+<a class="nav-item" href="#scope">1. Portée &amp; principes</a>
+<a class="nav-item" href="#context">2. Contexte système</a>
+<div class="nav-group">Architecture</div>
+<a class="nav-item" href="#hla">3. Architecture haut niveau</a>
+<a class="nav-item" href="#lla">4. Architecture bas niveau</a>
+<a class="nav-item" href="#events">5. Modèle événementiel</a>
+<a class="nav-item" href="#flows">6. Flux de données</a>
+<div class="nav-group">Implémentation</div>
+<a class="nav-item" href="#data">7. Modèle de données</a>
+<a class="nav-item" href="#services">8. Services applicatifs</a>
+<a class="nav-item" href="#rules">9. Règles métier</a>
+<a class="nav-item" href="#errors">10. Cas limites &amp; erreurs</a>
+<div class="nav-group">Exploitation</div>
+<a class="nav-item" href="#security">11. Sécurité</a>
+<a class="nav-item" href="#infra">12. Infrastructure</a>
+<a class="nav-item" href="#observability">13. Observabilité</a>
+<a class="nav-item" href="#tbd">14. À définir avec le client</a>
+</nav>
+
+<main class="main">
+<div class="eyebrow">Document technique interne</div>
+<h1 class="page-title">Spécification backend &amp; architecture</h1>
+<p class="page-sub">Plateforme de commande B2B SIA. Architecture orientée événements : le logiciel de gestion existant du client (désigné ici <b>YME</b>) reste l'unique source de vérité pour les produits et le stock ; il <b>diffuse</b>, la plateforme <b>reçoit</b>. Aucun composant de la plateforme n'écrit dans le système existant, ni ne s'y connecte en base.</p>
+<div class="meta-row">
+<span class="meta-pill">Version <b>2.0</b></span>
+<span class="meta-pill">Runtime <b>Java 21 · Spring Boot 3.x</b></span>
+<span class="meta-pill">Données <b>PostgreSQL 16</b></span>
+<span class="meta-pill">Bus <b>Apache Kafka</b></span>
+<span class="meta-pill">Objets <b>S3 / Cloudflare R2</b></span>
+<span class="meta-pill">Hébergement <b>VPS Docker</b></span>
+<span class="meta-pill">Statut <b>À valider — 14 points ouverts</b></span>
+</div>
+
+<section id="scope">
+<h2><span class="num">1</span> Portée &amp; principes</h2>
+<h3>Dans le périmètre</h3>
+<ul>
+<li>API REST de la plateforme B2B : authentification, catalogue, recherche, panier, commandes, compte client, back-office.</li>
+<li>Passerelle d'ingestion événementielle recevant les changements de produits et de stock émis par YME.</li>
+<li>Boîte d'émission (outbox) exposant les commandes validées pour récupération par le connecteur du client.</li>
+<li>Projections locales produits / stock, réservations, historique de mouvements, réconciliation.</li>
+<li>Supervision : santé des flux, retards d'ingestion, file d'erreurs, rejeu manuel.</li>
+</ul>
+<h3>Hors périmètre</h3>
+<ul>
+<li>Toute modification, extension ou requête directe dans YME ou sa base de données.</li>
+<li>Le connecteur côté client (agent qui émet les événements depuis YME) — <b>fourniture et responsabilité à arbitrer</b>, voir <a href="#tbd">§14</a>.</li>
+<li>Comptabilité, facturation légale, déclarations fiscales : restent dans YME.</li>
+<li>Paiement en ligne — non prévu à ce stade (voir TBD-11).</li>
+</ul>
+<h3>Principes directeurs</h3>
+<div class="grid g2">
+<div class="box"><div class="box-title">P1 — YME est la source de vérité</div><div class="box-items">Produits, prix de base, stock, clients et tarifs proviennent de YME. La plateforme ne fait qu'en tenir une projection lisible. Aucune donnée maîtresse n'est créée côté plateforme.</div></div>
+<div class="box"><div class="box-title">P2 — Découplage total</div><div class="box-items">Aucune connexion synchrone vers YME sur le chemin critique d'une requête utilisateur. Si YME est arrêté, le site continue de servir le catalogue et d'enregistrer des commandes.</div></div>
+<div class="box"><div class="box-title">P3 — Pull uniquement vers le client</div><div class="box-items">Rien n'entre dans le réseau du client à notre initiative. C'est le connecteur du client qui appelle la plateforme, dans les deux sens (dépôt d'événements, retrait de commandes).</div></div>
+<div class="box"><div class="box-title">P4 — Tout événement est rejouable</div><div class="box-items">Chaque message reçu est conservé brut, identifié, horodaté. Un incident se répare par rejeu, jamais par correction manuelle en base.</div></div>
+<div class="box"><div class="box-title">P5 — Le stock projeté est une information, pas un engagement</div><div class="box-items">La disponibilité affichée est une projection datée. L'engagement ferme sur les quantités est prononcé par YME à la confirmation de commande.</div></div>
+<div class="box"><div class="box-title">P6 — Contrat explicite et versionné</div><div class="box-items">L'enveloppe des événements et les contrats API sont versionnés. Un schéma inconnu est rejeté et signalé, jamais interprété au mieux.</div></div>
+</div>
+<div class="note tbd"><div class="note-title">Dépendance client — bloquant conception</div><p>Les <b>DTO et modèles de données Produit et Stock</b> ne sont pas définis dans ce document. Ils doivent être fixés avec le client à partir des structures réelles de YME (noms de champs, types, cardinalités, unités, référentiels de codes), car la fidélité à 100 % de ces structures est la condition du fonctionnement événementiel. Ce document définit tout ce qui les entoure : enveloppe, transport, garanties, projections, cycle de vie. Voir <a href="#tbd">§14 — TBD-01 à TBD-05</a>.</p></div>
+</section>
+
+<section id="context">
+<h2><span class="num">2</span> Contexte système</h2>
+<p>Quatre acteurs, deux réseaux, une seule direction d'appel réseau.</p>
+<pre>        RÉSEAU CLIENT (SIA)                    │        NOTRE VPS
+                                               │
+  ┌──────────────┐   lit/écrit  ┌───────────┐  │   ┌─────────────────────────┐
+  │  YME         │◄────────────►│ Connecteur│  │   │  Plateforme B2B          │
+  │  (legacy,    │              │  client   │──┼──►│  Spring Boot · Postgres  │
+  │  source de   │              │  (agent)  │◄─┼───│                          │
+  │  vérité)     │              └───────────┘  │   │  ingestion │ outbox │ API │
+  └──────────────┘                    ▲        │   └─────────────────────────┘
+                                      │        │              ▲        ▲
+                            <b>POST</b> événements  │              │        │
+                            <b>GET/ACK</b> commandes │        navigateur  back-office
+                                               │        (client B2B)   (SIA)
+                                      pare-feu client — aucun flux entrant</pre>
+<table>
+<thead><tr><th>Acteur</th><th>Rôle</th><th>Propriété</th></tr></thead>
+<tbody>
+<tr><td><b>YME</b></td><td>Gestion commerciale existante. Émet les changements produits/stock. Reçoit les commandes validées et prononce la confirmation ferme.</td><td>Client</td></tr>
+<tr><td><b>Connecteur client</b></td><td>Agent installé côté client. Détecte les changements dans YME, les publie sur notre passerelle, retire les commandes de l'outbox, les injecte dans YME, accuse réception.</td><td class="m">TBD-06</td></tr>
+<tr><td><b>Plateforme B2B</b></td><td>API, projections, panier, commandes, back-office, supervision.</td><td>Nous</td></tr>
+<tr><td><b>Stockage objet</b></td><td>Images produits, fiches PDF, exports. S3 / Cloudflare R2, servi via CDN.</td><td>Nous</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="hla">
+<h2><span class="num">3</span> Architecture haut niveau</h2>
+<p>Un seul déploiement Spring Boot, découpé en modules internes à frontières explicites. Pas de microservices : le volume attendu (≈48 000 références, quelques dizaines de clients professionnels) ne les justifie pas et ils multiplieraient les modes de panne sur un VPS unique. Le découplage passe par le <b>bus d'événements Kafka</b>, pas par la découpe en services.</p>
+<div class="grid g2">
+<div class="box own"><div class="box-title">Edge</div><div class="box-items">Nginx / Cloudflare<br>TLS, rate limiting, cache statique, WAF</div></div>
+<div class="box own"><div class="box-title">Application</div><div class="box-items">API publique (clients B2B)<br>API admin (back-office)<br>Passerelle d'ingestion<br>Consommateurs Kafka (projections, effets de bord)</div></div>
+<div class="box own"><div class="box-title">Bus d'événements</div><div class="box-items">Apache Kafka, mode KRaft (sans ZooKeeper)<br>Topics versionnés, partitionnés par entité<br>Topics de reprise et de rebut (DLT)<br>Rétention longue = rejeu natif</div></div>
+<div class="box own"><div class="box-title">Persistance</div><div class="box-items">PostgreSQL 16 (données, journal brut, outbox)<br>Redis (cache, sessions, pub/sub temps réel)<br>S3/R2 (médias, archives, rapports)</div></div>
+</div>
+<h3>Modules applicatifs</h3>
+<table>
+<thead><tr><th>Module</th><th>Responsabilité</th><th>Écrit dans</th><th>Écoute</th></tr></thead>
+<tbody>
+<tr><td class="k">identity</td><td>Comptes, rôles, sessions, validation des inscriptions professionnelles</td><td class="m">users, sessions</td><td>—</td></tr>
+<tr><td class="k">ingestion</td><td>Réception, authentification et persistance brute des événements YME. Aucune logique métier.</td><td class="m">event_inbox</td><td>HTTP</td></tr>
+<tr><td class="k">projection</td><td>Application des événements aux projections produit / stock / tarif. Idempotence et ordre.</td><td class="m">product_*, stock_*</td><td class="m">sia.ingest.*</td></tr>
+<tr><td class="k">catalog</td><td>Lecture catalogue, arborescence, compatibilités véhicule, recherche</td><td>— (lecture)</td><td class="m">projection.updated</td></tr>
+<tr><td class="k">pricing</td><td>Résolution du prix applicable : tarif client, remises, promotions locales</td><td class="m">promotion*</td><td class="m">projection.updated</td></tr>
+<tr><td class="k">cart</td><td>Panier persistant, revalidation de disponibilité et de prix</td><td class="m">cart, cart_line</td><td class="m">stock.changed</td></tr>
+<tr><td class="k">ordering</td><td>Cycle de vie de la commande, réservations locales, machine à états</td><td class="m">order*, reservation</td><td class="m">erp.order.*</td></tr>
+<tr><td class="k">outbox</td><td>Publication des commandes validées, remise au connecteur, accusés</td><td class="m">outbox_message</td><td class="m">order.validated</td></tr>
+<tr><td class="k">content</td><td>Sections de la page d'accueil, bannières, médias</td><td class="m">content_block, media</td><td>—</td></tr>
+<tr><td class="k">ops</td><td>Supervision des flux, métriques, file d'erreurs, rejeu, réconciliation</td><td class="m">sync_health</td><td>tous</td></tr>
+</tbody>
+</table>
+<h3>Règles de dépendance entre modules</h3>
+<ul>
+<li><code>ingestion</code> ne dépend d'aucun module métier. Il ne connaît que l'enveloppe et la table brute.</li>
+<li><code>projection</code> est le seul module autorisé à écrire dans les tables de projection produit / stock.</li>
+<li>Les modules communiquent par événements applicatifs internes, pas par appels croisés de services, dès qu'une écriture est concernée.</li>
+<li>Aucun module n'ouvre de connexion vers le réseau du client (P3).</li>
+</ul>
+</section>
+
+<section id="lla">
+<h2><span class="num">4</span> Architecture bas niveau</h2>
+<h3>Couches</h3>
+<div class="layers">
+<div class="layer"><div class="layer-name">Controller</div><div class="layer-body">@RestController · validation Bean Validation · mapping DTO ⇄ commande · aucune règle métier · aucun accès repository</div></div>
+<div class="layer"><div class="layer-name">Application service</div><div class="layer-body">@Service @Transactional · orchestration, transactions, publication d'événements internes, autorisation fine</div></div>
+<div class="layer"><div class="layer-name">Domain</div><div class="layer-body">Entités riches, machines à états, règles invariantes, objets valeur (Money, Sku, Quantity) · sans dépendance Spring</div></div>
+<div class="layer"><div class="layer-name">Persistence</div><div class="layer-body">Spring Data JPA pour les écritures · JdbcTemplate / SQL natif pour les lectures de catalogue et agrégats · Flyway pour le schéma</div></div>
+<div class="layer"><div class="layer-name">Integration</div><div class="layer-body">Passerelle d'ingestion, outbox, workers, client S3, mailer</div></div>
+</div>
+<h3>Arborescence des packages</h3>
+<pre>tn.sia.b2b
+├── config/          <i>sécurité, CORS, Jackson, async, OpenAPI</i>
+├── shared/
+│   ├── domain/      <i>Money, Sku, Quantity, PageRequest</i>
+│   ├── error/       <i>AppException, ErrorCode, GlobalExceptionHandler</i>
+│   └── event/       <i>DomainEvent, EventPublisher, @TransactionalEventListener</i>
+├── identity/        <i>controller · service · domain · repository</i>
+├── ingestion/
+│   ├── web/         <i>IngestionController, OutboxController</i>
+│   ├── auth/        <i>HmacSignatureVerifier, SourceRegistry</i>
+│   ├── envelope/    <i>EventEnvelope, EnvelopeValidator, SchemaVersion</i>
+│   └── store/       <i>EventInboxRepository</i>
+├── projection/
+│   ├── handler/     <i>ProductEventHandler, StockEventHandler, PriceEventHandler</i>
+│   ├── consumer/    <i>@KafkaListener par topic, DefaultErrorHandler, DLT</i>
+│   ├── relay/       <i>InboxRelay : event_inbox → topic Kafka (SKIP LOCKED)</i>
+│   └── model/       <i>ProductProjection, StockProjection  ← structure TBD-01/02</i>
+├── catalog/ pricing/ cart/ ordering/ outbox/ content/ ops/
+└── Application.java</pre>
+<h3>Conventions techniques</h3>
+<table>
+<thead><tr><th>Sujet</th><th>Décision</th></tr></thead>
+<tbody>
+<tr><td>Identifiants</td><td>UUID v7 en clé primaire pour les entités que nous possédons. Les identifiants YME sont conservés tels quels dans une colonne dédiée <code>source_ref</code>, jamais transformés.</td></tr>
+<tr><td>Montants</td><td><code>NUMERIC(14,3)</code> en base, objet valeur <code>Money(BigDecimal, currency)</code> en domaine. Jamais de <code>double</code>. Devise et nombre de décimales : TBD-09.</td></tr>
+<tr><td>Dates</td><td><code>timestamptz</code> en base, <code>Instant</code> en Java, UTC partout. Conversion au fuseau africa/Tunis à l'affichage uniquement.</td></tr>
+<tr><td>Migrations</td><td>Flyway, versionnées, jamais modifiées après application. Aucun <code>ddl-auto</code> autre que <code>validate</code>.</td></tr>
+<tr><td>Transactions</td><td>Une transaction par commande applicative. Les effets externes (mail, S3, outbox) passent par un événement publié <code>AFTER_COMMIT</code>.</td></tr>
+<tr><td>Concurrence</td><td>Verrou optimiste (<code>@Version</code>) sur panier et commande. Verrou pessimiste court (<code>SELECT … FOR UPDATE</code>) sur les lignes de réservation de stock.</td></tr>
+<tr><td>Bus</td><td><b>Apache Kafka</b> pour tout le transport d'événements, en mode KRaft. Clé de partition = identifiant d'entité, ce qui garantit l'ordre par référence. Sérialisation JSON, en-têtes portant <code>eventId</code>, <code>schemaVersion</code> et <code>traceId</code>.</td></tr>
+<tr><td>Publication fiable</td><td>Motif <i>transactional outbox</i> : l'événement est écrit en base dans la transaction métier, puis relayé vers Kafka par un relais dédié (<code>FOR UPDATE SKIP LOCKED</code>). Aucune publication depuis une transaction non commitée, aucun événement perdu si le courtier est indisponible.</td></tr>
+<tr><td>Pagination</td><td>Curseur (clé stable + limite) sur le catalogue et les journaux ; <code>offset</code> autorisé seulement sur les écrans admin filtrés.</td></tr>
+<tr><td>API</td><td>REST, préfixe versionné <code>/api/v1</code>, JSON <code>camelCase</code>, OpenAPI généré et publié.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="events">
+<h2><span class="num">5</span> Modèle événementiel</h2>
+<h3>5.1 Le principe, sans métaphore</h3>
+<p>YME émet un message chaque fois qu'une donnée qui nous concerne change : création ou modification d'un article, variation de stock, changement de tarif. La plateforme n'interroge jamais YME. Elle reçoit, enregistre, applique. Conséquences directes :</p>
+<ul>
+<li>La charge du site n'atteint jamais YME. Mille visiteurs simultanés ne génèrent aucune requête sur le système existant.</li>
+<li>Un arrêt de YME n'arrête pas le site : les projections restent servies, avec leur date de dernière mise à jour.</li>
+<li>Un arrêt de la plateforme ne perd pas de données : le connecteur conserve les événements non acquittés et les rejoue.</li>
+</ul>
+<h3>5.2 Transport d'ingestion — options à arbitrer</h3>
+<p>Le mécanisme d'émission dépend de ce que YME sait faire. Les quatre options ci-dessous sont techniquement équivalentes pour la plateforme : notre passerelle reçoit la même enveloppe dans tous les cas. Le choix est une décision client (TBD-06).</p>
+<table>
+<thead><tr><th>Option</th><th>Mécanisme côté client</th><th>Latence</th><th>Condition</th></tr></thead>
+<tbody>
+<tr><td><b>A — Push direct</b></td><td>YME appelle notre endpoint à chaque changement</td><td>Immédiate</td><td>YME sait émettre du HTTP sortant</td></tr>
+<tr><td><b>B — Table de sortie + agent</b></td><td>Déclencheur SQL dans YME alimente une table de sortie ; un agent léger la lit et publie</td><td>1–10 s</td><td>Accès en écriture à un déclencheur / une table dans YME</td></tr>
+<tr><td><b>C — Dépôt de fichiers</b></td><td>YME exporte un fichier (CSV/XML/JSON) ; l'agent le dépose sur la passerelle</td><td>Selon planification</td><td>Export existant. Le moins réactif, le plus simple.</td></tr>
+<tr><td><b>D — Lecture en réplica</b></td><td>Un agent lit un réplica en lecture seule de la base YME et détecte les deltas</td><td>5–60 s</td><td>Réplica disponible. Aucune écriture dans YME.</td></tr>
+</tbody>
+</table>
+<div class="note warn"><div class="note-title">Ce que nous refusons</div><p>Toute solution où la plateforme lit en direct la base de production de YME sur le chemin d'une requête utilisateur. C'est la seule architecture qui ferait porter la charge du site sur le système de gestion, et le motif même de ce projet est de l'éviter.</p></div>
+<h3>5.3 Enveloppe d'événement</h3>
+<p>L'enveloppe est notre contrat, stable quelle que soit l'option de transport. Le <code>payload</code> est opaque à l'ingestion : sa structure appartient au client et sera fixée par TBD-01 à TBD-04.</p>
+<pre>{
+  "<b>eventId</b>":     "9f1c…",           <i>UUID unique par événement — clé d'idempotence</i>
+  "<b>eventType</b>":   "stock.changed",   <i>voir catalogue 5.4</i>
+  "<b>schemaVersion</b>": 1,               <i>entier ; version inconnue = rejet</i>
+  "<b>source</b>":      "yme-prod",        <i>identifiant de l'émetteur enregistré</i>
+  "<b>occurredAt</b>":  "2026-09-11T08:14:22Z", <i>horodatage côté YME</i>
+  "<b>sequence</b>":    148203,            <i>compteur monotone par source — détection de trous</i>
+  "<b>entityRef</b>":   "…",               <i>identifiant naturel de l'entité dans YME (SKU, code article)</i>
+  "<b>entityVersion</b>": 37,              <i>version/compteur de l'entité — résolution des courses</i>
+  "<b>payload</b>":     { … }              <i>STRUCTURE À DÉFINIR AVEC LE CLIENT</i>
+}</pre>
+<table>
+<thead><tr><th>Champ</th><th>Rôle opérationnel</th><th>Si absent</th></tr></thead>
+<tbody>
+<tr><td class="k">eventId</td><td>Déduplication. Un même eventId reçu deux fois est acquitté sans retraitement.</td><td>Rejet <code>422</code></td></tr>
+<tr><td class="k">sequence</td><td>Détection de perte : un saut dans la suite déclenche une alerte et une demande de rejeu de l'intervalle.</td><td>Accepté, mais détection de trous impossible — dégrade la supervision</td></tr>
+<tr><td class="k">entityVersion</td><td>Ordonnancement par entité : un événement de version inférieure à celle déjà projetée est ignoré (arrivée tardive).</td><td>Repli sur <code>occurredAt</code>, moins fiable</td></tr>
+<tr><td class="k">occurredAt</td><td>Calcul de l'âge de la donnée affichée et des alertes de retard.</td><td>Rejet <code>422</code></td></tr>
+</tbody>
+</table>
+<div class="note tbd"><div class="note-title">À confirmer avec le client</div><p>YME peut-il fournir <code>sequence</code> et <code>entityVersion</code> ? Sans l'un ou l'autre, les garanties d'ordre et de complétude reposent uniquement sur la réconciliation périodique (5.7), ce qui doit être acté explicitement.</p></div>
+<h3>5.4 Catalogue des événements entrants</h3>
+<p>Types retenus côté plateforme. Le contenu de chaque <code>payload</code> est à établir avec le client ; la colonne « Effet » décrit ce que la plateforme en fait.</p>
+<table>
+<thead><tr><th>eventType</th><th>Effet sur la plateforme</th><th>Payload</th></tr></thead>
+<tbody>
+<tr><td class="k">product.upserted</td><td>Crée ou met à jour la projection produit ; réindexe la recherche ; invalide le cache de la fiche.</td><td><span class="chip chip-tbd">TBD-01</span></td></tr>
+<tr><td class="k">product.deactivated</td><td>Retire le produit de la vente. Les paniers le contenant sont marqués à revalider.</td><td><span class="chip chip-tbd">TBD-01</span></td></tr>
+<tr><td class="k">stock.changed</td><td>Remplace la quantité projetée pour une référence (et un dépôt, si multi-dépôt). Recalcule la disponibilité. Déclenche les alertes de rupture.</td><td><span class="chip chip-tbd">TBD-02</span></td></tr>
+<tr><td class="k">stock.snapshot</td><td>État complet du stock à un instant donné. Sert de base de réconciliation et de reprise.</td><td><span class="chip chip-tbd">TBD-02</span></td></tr>
+<tr><td class="k">price.changed</td><td>Met à jour le prix de base et/ou le tarif client applicable.</td><td><span class="chip chip-tbd">TBD-03</span></td></tr>
+<tr><td class="k">customer.upserted</td><td>Met à jour le compte professionnel : tarif rattaché, encours, conditions.</td><td><span class="chip chip-tbd">TBD-04</span></td></tr>
+<tr><td class="k">order.acknowledged</td><td>YME a intégré la commande. Porte la référence de la pièce créée dans YME.</td><td><span class="chip chip-tbd">TBD-05</span></td></tr>
+<tr><td class="k">order.confirmed</td><td>Engagement ferme sur les quantités et le montant. Peut être partiel.</td><td><span class="chip chip-tbd">TBD-05</span></td></tr>
+<tr><td class="k">order.rejected</td><td>Refus avec motif. Libère les réservations locales.</td><td><span class="chip chip-tbd">TBD-05</span></td></tr>
+<tr><td class="k">order.statusChanged</td><td>Avancement logistique (préparation, expédition, livraison).</td><td><span class="chip chip-tbd">TBD-05</span></td></tr>
+</tbody>
+</table>
+<h3>5.5 Bus Kafka — topics et événements internes</h3>
+<p>Tout transport d'événement à l'intérieur de la plateforme passe par Kafka. La passerelle HTTP n'est qu'une porte d'entrée : elle écrit le message brut en base, puis un relais le publie sur le topic correspondant. Les projections et les effets de bord sont des consommateurs.</p>
+<pre>connecteur ─HTTP─► passerelle ─► <b>event_inbox</b> (Postgres) ─relais─► <b>topic Kafka</b> ─► consommateurs
+                        │                                                    ├► projection produit
+                 202 immédiat                                               ├► projection stock
+                                                                            └► ops / supervision</pre>
+<p>Pourquoi les deux et pas Kafka seul à la réception : l'écriture en base rend l'accusé au connecteur indépendant de la disponibilité du courtier, porte l'unicité de <code>eventId</code> (contrainte SQL, garantie par le moteur) et conserve le journal consultable au-delà de la rétention Kafka. Kafka apporte le découplage, l'ordre par partition, la reprise par <i>offset</i> et le rejeu.</p>
+<table>
+<thead><tr><th>Topic</th><th>Clé de partition</th><th>Produit par</th><th>Consommé par</th></tr></thead>
+<tbody>
+<tr><td class="k">sia.ingest.product.v1</td><td class="m">entityRef</td><td>relais d'ingestion</td><td>projection, catalog, ops</td></tr>
+<tr><td class="k">sia.ingest.stock.v1</td><td class="m">entityRef</td><td>relais d'ingestion</td><td>projection, cart, ops</td></tr>
+<tr><td class="k">sia.ingest.price.v1</td><td class="m">entityRef</td><td>relais d'ingestion</td><td>projection, pricing</td></tr>
+<tr><td class="k">sia.ingest.customer.v1</td><td class="m">entityRef</td><td>relais d'ingestion</td><td>projection, identity</td></tr>
+<tr><td class="k">sia.ingest.order-feedback.v1</td><td class="m">orderNumber</td><td>relais d'ingestion</td><td>ordering, notification</td></tr>
+<tr><td class="k">sia.internal.order.v1</td><td class="m">orderId</td><td>ordering</td><td>outbox, notification, ops</td></tr>
+<tr><td class="k">sia.internal.projection.v1</td><td class="m">entityRef</td><td>projection</td><td>catalog (index, cache), cart, temps réel admin</td></tr>
+<tr><td class="k">&lt;topic&gt;.retry</td><td class="m">id.</td><td>gestionnaire d'erreur</td><td>même consommateur, après délai</td></tr>
+<tr><td class="k">&lt;topic&gt;.dlt</td><td class="m">id.</td><td>gestionnaire d'erreur</td><td>supervision uniquement — rejeu manuel</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Paramètre Kafka</th><th>Valeur</th><th>Motif</th></tr></thead>
+<tbody>
+<tr><td class="k">partitions</td><td class="m">6 par topic d'ingestion</td><td>Parallélisme suffisant pour 48 000 références, ordre préservé par référence</td></tr>
+<tr><td class="k">replication.factor</td><td class="m">1 (VPS unique)</td><td>Assumé : la durabilité repose sur <code>event_inbox</code> et les sauvegardes Postgres, pas sur le courtier</td></tr>
+<tr><td class="k">retention.ms</td><td class="m">7 jours</td><td>Rejeu immédiat sur la fenêtre courante ; au-delà, rejeu depuis <code>event_inbox</code> (90 j)</td></tr>
+<tr><td class="k">enable.auto.commit</td><td class="m">false</td><td><i>Offset</i> validé après traitement réussi : au moins une fois, jamais de perte silencieuse</td></tr>
+<tr><td class="k">max.poll.records</td><td class="m">100</td><td>Lots courts, reprise rapide après incident</td></tr>
+<tr><td class="k">acks</td><td class="m">all</td><td>Le relais ne marque l'événement publié qu'après accusé du courtier</td></tr>
+</tbody>
+</table>
+<div class="note rule"><div class="note-title">Ordre par entité</div><p>La clé de partition est l'identifiant d'entité. Tous les événements d'une même référence atterrissent donc sur la même partition et sont consommés dans l'ordre de publication. Le contrôle de <code>entityVersion</code> (5.7) reste en place : il couvre le désordre introduit <b>avant</b> Kafka, c'est-à-dire côté connecteur ou réseau.</p></div>
+<h4>Événements internes publiés par la plateforme</h4>
+<table>
+<thead><tr><th>Événement</th><th>Émetteur</th><th>Topic</th></tr></thead>
+<tbody>
+<tr><td class="k">ProductProjectionUpdated</td><td>projection</td><td class="m">sia.internal.projection.v1</td></tr>
+<tr><td class="k">StockProjectionUpdated</td><td>projection</td><td class="m">sia.internal.projection.v1</td></tr>
+<tr><td class="k">OrderSubmitted</td><td>ordering</td><td class="m">sia.internal.order.v1</td></tr>
+<tr><td class="k">OrderValidated</td><td>ordering</td><td class="m">sia.internal.order.v1</td></tr>
+<tr><td class="k">OrderConfirmed / OrderRejected</td><td>ordering</td><td class="m">sia.internal.order.v1</td></tr>
+<tr><td class="k">IngestionFailed</td><td>gestionnaire d'erreur</td><td class="m">&lt;topic&gt;.dlt</td></tr>
+</tbody>
+</table>
+<h3>5.6 Outbox sortante — commandes vers YME</h3>
+<p>Une commande validée n'est pas poussée vers le client : elle est <b>déposée</b> dans une boîte que le connecteur vient vider. Le sens de l'appel réseau reste toujours client → plateforme (P3). Ce sens sortant reste en HTTP et non en Kafka, délibérément : exposer un topic au réseau du client imposerait un client Kafka, un port ouvert et une gestion d'<i>offset</i> côté connecteur. Un appel HTTP authentifié avec accusé explicite est plus simple à exploiter et ne dépend d'aucune bibliothèque chez le client. Kafka reste interne à notre plateforme.</p>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>Dépôt transactionnel</strong><span>Dans la même transaction que la validation de la commande, une ligne est écrite dans <code>outbox_message</code> (statut <code>PENDING</code>). Aucune commande validée ne peut exister sans son message.</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Retrait</strong><span>Le connecteur appelle l'endpoint de lecture, qui renvoie jusqu'à N messages en attente et les marque <code>LEASED</code> avec une échéance.</span><span class="api-ref">GET /ingest/v1/outbox?limit=50</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Injection dans YME</strong><span>Hors de notre responsabilité. Le connecteur crée la pièce dans YME.</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Accusé</strong><span>Le connecteur acquitte chaque message traité. Sans accusé avant échéance, le message redevient <code>PENDING</code> et sera re-servi : la remise est <b>au moins une fois</b>, l'injection côté client doit donc être idempotente sur <code>orderNumber</code>.</span><span class="api-ref">POST /ingest/v1/outbox/ack</span></div></div>
+<div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><strong>Retour d'état</strong><span>La confirmation revient comme un événement entrant ordinaire (<code>order.acknowledged</code> puis <code>order.confirmed</code>), traité par la même passerelle.</span></div></div>
+</div>
+<h3>5.7 Garanties et mécanismes de sûreté</h3>
+<table>
+<thead><tr><th>Mécanisme</th><th>Implémentation</th></tr></thead>
+<tbody>
+<tr><td><b>Idempotence</b></td><td>Contrainte d'unicité sur <code>event_inbox.event_id</code>. Un doublon renvoie <code>202</code> avec <code>duplicate: true</code> sans retraitement.</td></tr>
+<tr><td><b>Durabilité avant traitement</b></td><td>La passerelle écrit l'événement brut en base et répond <code>202</code> sans attendre le courtier. La publication Kafka puis le traitement sont asynchrones : ni une indisponibilité de Kafka ni une erreur de projection ne peuvent faire échouer une réception.</td></tr>
+<tr><td><b>Ordre de consommation</b></td><td>Partitionnement par identifiant d'entité : les événements d'une même référence sont consommés dans l'ordre de publication, sans coordination applicative.</td></tr>
+<tr><td><b>Progression des consommateurs</b></td><td><i>Offset</i> validé manuellement après traitement réussi. Un redémarrage reprend au dernier événement non traité ; au pire un événement est retraité, ce que l'idempotence absorbe.</td></tr>
+<tr><td><b>Ordre par entité</b></td><td>Comparaison de <code>entityVersion</code> avec la version projetée. Inférieure ou égale = ignoré (<code>SUPERSEDED</code>), consigné.</td></tr>
+<tr><td><b>Détection de trous</b></td><td>Suivi du dernier <code>sequence</code> par source. Un saut lève une alerte et permet une demande de rejeu de l'intervalle manquant.</td></tr>
+<tr><td><b>Reprise en erreur</b></td><td>Gestionnaire d'erreur Spring Kafka : 5 tentatives sur topics de reprise, délai exponentiel (10 s → 5 min), puis bascule sur <code>&lt;topic&gt;.dlt</code>. L'événement correspondant passe en <code>DEAD</code> dans <code>event_inbox</code>, apparaît dans la file d'erreurs du back-office et reste rejouable en un clic. Un message en rebut ne bloque jamais sa partition.</td></tr>
+<tr><td><b>Réconciliation</b></td><td><code>stock.snapshot</code> quotidien planifié. Comparaison ligne à ligne avec la projection ; les écarts sont listés dans un rapport et corrigés par application du snapshot.</td></tr>
+<tr><td><b>Rétention</b></td><td>Topics Kafka : 7 jours, pour le rejeu immédiat. <code>event_inbox</code> : 90 jours en ligne, puis archivé en objet compressé (S3/R2). Un rejeu au-delà de 7 jours republie depuis la base, jamais depuis le courtier.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="flows">
+<h2><span class="num">6</span> Flux de données</h2>
+<h3>6.1 Changement de stock dans YME → affichage sur le site</h3>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>Le stock change dans YME</strong><span>Vente au comptoir, réception fournisseur, inventaire. Le connecteur détecte le changement selon l'option de transport retenue.</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Publication</strong><span>Enveloppe <code>stock.changed</code> signée, envoyée à la passerelle.</span><span class="api-ref">POST /ingest/v1/events</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Réception</strong><span>Vérification de signature, validation de l'enveloppe, écriture dans <code>event_inbox</code>, réponse <code>202</code>. Cible : moins de 50 ms. Aucun appel au courtier sur ce chemin.</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Publication</strong><span>Le relais lit les événements non publiés (<code>SKIP LOCKED</code>) et les émet sur <code>sia.ingest.stock.v1</code>, clé = référence produit. Marqués publiés après accusé du courtier.</span></div></div>
+<div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><strong>Projection</strong><span>Le consommateur contrôle l'ordre, met à jour <code>stock_projection</code>, écrit une ligne dans <code>stock_movement</code>, recalcule la disponibilité, puis valide son <i>offset</i>.</span></div></div>
+<div class="flow-step"><div class="flow-num">6</div><div class="flow-content"><strong>Diffusion</strong><span>Invalidation du cache de la fiche produit ; publication temps réel vers le back-office ; alerte si franchissement du seuil de rupture.</span></div></div>
+<div class="flow-step"><div class="flow-num">7</div><div class="flow-content"><strong>Affichage</strong><span>Le client voit la nouvelle disponibilité, avec l'âge de la donnée. Objectif de bout en bout : moins de 5 s en options A et B.</span></div></div>
+</div>
+<h3>6.2 Cycle de commande</h3>
+<div class="flow">
+<div class="flow-step"><div class="flow-num">1</div><div class="flow-content"><strong>Panier</strong><span>Chaque ligne fige la référence, la quantité, le prix résolu et l'horodatage de résolution.</span><span class="api-ref">POST /api/v1/cart/lines</span></div></div>
+<div class="flow-step"><div class="flow-num">2</div><div class="flow-content"><strong>Revalidation</strong><span>À l'entrée en validation : contrôle produit actif, disponibilité projetée, prix inchangé. Tout écart est présenté au client avant soumission (RM-07).</span><span class="api-ref">POST /api/v1/cart/validate</span></div></div>
+<div class="flow-step"><div class="flow-num">3</div><div class="flow-content"><strong>Soumission</strong><span>Création de la commande en <code>SUBMITTED</code>, numéro attribué, réservations locales posées avec expiration. Requiert un en-tête <code>Idempotency-Key</code>.</span><span class="api-ref">POST /api/v1/orders</span></div></div>
+<div class="flow-step"><div class="flow-num">4</div><div class="flow-content"><strong>Validation SIA</strong><span>Le back-office contrôle et valide (ou refuse) la commande. Le passage en <code>VALIDATED</code> écrit le message d'outbox dans la même transaction.</span><span class="api-ref">POST /api/v1/admin/orders/{id}/validate</span></div></div>
+<div class="flow-step"><div class="flow-num">5</div><div class="flow-content"><strong>Remise au connecteur</strong><span>Retrait, injection dans YME, accusé. La commande passe <code>EXPORTED</code> puis <code>ACKNOWLEDGED</code> avec la référence de pièce YME.</span></div></div>
+<div class="flow-step"><div class="flow-num">6</div><div class="flow-content"><strong>Confirmation ferme</strong><span><code>order.confirmed</code> arrive de YME : quantités et montant définitifs. Les réservations locales sont soldées. Une confirmation partielle est un cas normal (RM-10).</span></div></div>
+<div class="flow-step"><div class="flow-num">7</div><div class="flow-content"><strong>Suivi</strong><span>Les changements d'état logistique remontent par <code>order.statusChanged</code> jusqu'à <code>DELIVERED</code>.</span></div></div>
+</div>
+<h3>6.3 Résolution du prix affiché</h3>
+<pre>prix affiché = f(projection produit, tarif client YME, promotions locales, quantité)
+
+1. prix de base           ← projection YME            <i>(obligatoire)</i>
+2. tarif du client         ← projection YME            <i>si le client a un tarif rattaché</i>
+3. remise quantitative     ← projection YME            <i>si palier applicable  — TBD-03</i>
+4. promotion plateforme    ← table locale promotion    <i>par client ou famille</i>
+5. arrondi + TVA           ← règle fiscale             <i>TBD-09</i>
+
+Règle de composition et cumul des étapes 3 et 4 : TBD-10.
+Aucun prix n'est calculé côté plateforme à partir d'un coût ou d'une marge.</pre>
+<h3>6.4 Média produit</h3>
+<p>Les images ne transitent pas par les événements. Le payload produit peut porter une référence de fichier ; le fichier lui-même est déposé par le back-office ou par un import de médias, stocké dans S3/R2 sous une clé dérivée de la référence, et servi via CDN en trois formats (miniature, fiche, zoom). Si YME détient les images, leur mode de transmission est à définir (TBD-08).</p>
+</section>
+
+<section id="data">
+<h2><span class="num">7</span> Modèle de données</h2>
+<p>Trois zones distinctes, à ne pas mélanger : ce que nous possédons, ce que nous projetons depuis YME, et l'infrastructure événementielle.</p>
+<h3>7.1 Zone « projection » — structure à définir avec le client</h3>
+<div class="note tbd"><div class="note-title">Non spécifié volontairement</div><p>Les colonnes de <code>product_projection</code>, <code>stock_projection</code>, <code>price_projection</code> et <code>customer_projection</code> doivent refléter fidèlement les structures de YME. Les inventer maintenant produirait une correspondance approximative et un flux événementiel non fiable. Seules les colonnes techniques ci-dessous sont fixées dès à présent, car elles nous appartiennent et sont indépendantes du contenu.</p></div>
+<table>
+<thead><tr><th>Colonne technique</th><th>Type</th><th>Rôle</th></tr></thead>
+<tbody>
+<tr><td class="k">source_ref</td><td class="t">text</td><td>Identifiant de l'entité dans YME, à l'identique. Clé de rapprochement, unique par type d'entité.</td></tr>
+<tr><td class="k">source_version</td><td class="t">bigint</td><td>Dernière <code>entityVersion</code> appliquée. Base du rejet des événements tardifs.</td></tr>
+<tr><td class="k">last_event_id</td><td class="t">uuid</td><td>Traçabilité : quel événement a produit l'état courant.</td></tr>
+<tr><td class="k">projected_at</td><td class="t">timestamptz</td><td>Date d'application. Sert à afficher l'âge de la donnée.</td></tr>
+<tr><td class="k">source_occurred_at</td><td class="t">timestamptz</td><td>Date du changement dans YME. Sert au calcul du retard d'ingestion.</td></tr>
+<tr><td class="k">payload_raw</td><td class="t">jsonb</td><td>Charge d'origine conservée intégralement. Permet d'ajouter un champ exploité plus tard sans réingestion.</td></tr>
+<tr><td class="k">status</td><td class="t">text</td><td><code>ACTIVE</code> · <code>INACTIVE</code> · <code>ORPHANED</code> (référencé par une commande mais absent des projections).</td></tr>
+</tbody>
+</table>
+<div class="note rule"><div class="note-title">Stratégie retenue</div><p>Double écriture : le <code>payload_raw</code> <code>jsonb</code> complet est toujours conservé, et les champs réellement exploités par l'application (recherche, filtres, affichage) sont extraits en colonnes typées indexées une fois TBD-01/02 arbitré. On ne perd aucune donnée du client, et les requêtes restent performantes sur 48 000 références.</p></div>
+<h3>7.2 Zone « plateforme » — nous en sommes propriétaires</h3>
+<table>
+<thead><tr><th>Table</th><th>Colonnes principales</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td class="k">users</td><td class="m">id, email, password_hash, role, status, customer_source_ref, created_at</td><td>Un compte plateforme est rattaché à un client YME par <code>customer_source_ref</code>. <code>status</code> : <code>PENDING</code> → <code>ACTIVE</code> → <code>SUSPENDED</code>.</td></tr>
+<tr><td class="k">cart</td><td class="m">id, user_id, status, version, updated_at</td><td>Un panier actif par utilisateur. <code>version</code> pour verrou optimiste.</td></tr>
+<tr><td class="k">cart_line</td><td class="m">id, cart_id, product_source_ref, quantity, unit_price_resolved, price_resolved_at, availability_flag</td><td>Le prix est figé à l'ajout et revalidé à la soumission.</td></tr>
+<tr><td class="k">orders</td><td class="m">id, order_number, user_id, customer_source_ref, state, submitted_at, total_ht, total_ttc, erp_document_ref, idempotency_key, version</td><td><code>order_number</code> : séquence plateforme lisible. <code>erp_document_ref</code> renseigné à l'accusé YME.</td></tr>
+<tr><td class="k">order_line</td><td class="m">id, order_id, product_source_ref, label_snapshot, quantity_ordered, quantity_confirmed, unit_price, line_total</td><td><code>label_snapshot</code> : libellé au moment de la commande, pour que l'historique reste lisible même si le produit disparaît.</td></tr>
+<tr><td class="k">order_state_log</td><td class="m">id, order_id, from_state, to_state, actor, reason, event_id, at</td><td>Journal d'audit non modifiable. Toute transition y figure.</td></tr>
+<tr><td class="k">stock_reservation</td><td class="m">id, order_id, product_source_ref, quantity, state, expires_at</td><td>Réservation <b>locale</b> : réduit la disponibilité affichée, n'engage pas YME. États : <code>HELD</code> · <code>CONSUMED</code> · <code>RELEASED</code> · <code>EXPIRED</code>.</td></tr>
+<tr><td class="k">stock_movement</td><td class="m">id, product_source_ref, delta, quantity_after, cause, event_id, at</td><td>Historique des variations projetées. Alimente les courbes de supervision.</td></tr>
+<tr><td class="k">promotion</td><td class="m">id, scope, target_ref, kind, value, starts_at, ends_at, active</td><td><code>scope</code> : <code>CUSTOMER</code> · <code>FAMILY</code> · <code>PRODUCT</code>. Promotions propres à la plateforme, hors YME.</td></tr>
+<tr><td class="k">content_block</td><td class="m">id, kind, position, payload, published</td><td>Sections de la page d'accueil gérées par le back-office.</td></tr>
+<tr><td class="k">media</td><td class="m">id, object_key, kind, target_ref, width, height, bytes</td><td>Métadonnées ; le binaire est dans S3/R2.</td></tr>
+<tr><td class="k">audit_log</td><td class="m">id, actor_id, action, entity, entity_id, diff, ip, at</td><td>Toute action admin.</td></tr>
+</tbody>
+</table>
+<h3>7.3 Zone « intégration »</h3>
+<table>
+<thead><tr><th>Table</th><th>Colonnes principales</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td class="k">event_inbox</td><td class="m">id, event_id ∪, event_type, schema_version, source, sequence, entity_ref, entity_version, occurred_at, received_at, payload jsonb, state, attempts, last_error, processed_at</td><td>Append-only. États : <code>RECEIVED</code> · <code>PROCESSING</code> · <code>APPLIED</code> · <code>SUPERSEDED</code> · <code>RETRY</code> · <code>DEAD</code>. Index sur (<code>state</code>, <code>received_at</code>) et (<code>entity_ref</code>, <code>entity_version</code>).</td></tr>
+<tr><td class="k">outbox_message</td><td class="m">id, message_type, order_id, payload jsonb, state, leased_until, delivery_count, acked_at</td><td>États : <code>PENDING</code> · <code>LEASED</code> · <code>ACKED</code> · <code>FAILED</code>. Remise au moins une fois.</td></tr>
+<tr><td class="k">ingest_source</td><td class="m">id, source_code, secret_hash, allowed_ips, last_sequence, last_seen_at, active</td><td>Un secret par émetteur, rotatif. <code>last_sequence</code> pour la détection de trous.</td></tr>
+<tr><td class="k">sync_health</td><td class="m">id, source_code, window_start, events_received, events_applied, events_dead, max_lag_ms</td><td>Agrégat par fenêtre de 5 min, alimente les écrans de supervision.</td></tr>
+<tr><td class="k">reconciliation_run</td><td class="m">id, started_at, finished_at, compared, mismatches, report_key</td><td>Résultat de la réconciliation quotidienne ; rapport détaillé en objet S3/R2.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="services">
+<h2><span class="num">8</span> Services applicatifs</h2>
+<table>
+<thead><tr><th>Service</th><th>Opérations</th><th>Contrat</th></tr></thead>
+<tbody>
+<tr><td class="k">EventIngestionService</td><td><code>receive(envelope)</code></td><td>Vérifie signature, source, version de schéma, unicité. Écrit brut. <b>Ne projette rien.</b> Retourne l'état d'acceptation.</td></tr>
+<tr><td class="k">InboxRelay</td><td><code>publishUnsent()</code></td><td>Lit les événements non publiés (<code>SKIP LOCKED</code>), les émet sur le topic du type, marque publié après accusé <code>acks=all</code>. Seul point de contact avec le producteur Kafka.</td></tr>
+<tr><td class="k">ProjectionConsumer</td><td><code>@KafkaListener(topics=…)</code></td><td>Consomme par lots de 100, délègue au handler du type, gère ordre et idempotence, valide l'<i>offset</i> après succès. Une transaction par événement. Échec → topic de reprise puis DLT.</td></tr>
+<tr><td class="k">ProductProjectionHandler</td><td><code>apply(event)</code></td><td>Upsert de la projection produit, réindexation, invalidation de cache. Structure dépendante de TBD-01.</td></tr>
+<tr><td class="k">StockProjectionHandler</td><td><code>apply(event)</code> · <code>applySnapshot(event)</code></td><td>Met à jour la quantité projetée, journalise le mouvement, recalcule la disponibilité, déclenche les alertes. TBD-02.</td></tr>
+<tr><td class="k">AvailabilityService</td><td><code>availableFor(ref, customer)</code></td><td><code>disponible = projeté − réservations actives − tampon de sécurité</code>. Renvoie la quantité, l'état (<code>IN_STOCK</code>/<code>LOW</code>/<code>OUT</code>) et l'âge de la donnée. Politique d'affichage : TBD-07.</td></tr>
+<tr><td class="k">PricingService</td><td><code>resolve(ref, customer, qty)</code></td><td>Applique la chaîne de résolution (6.3). Retourne le prix, sa provenance et l'horodatage. Aucune valeur par défaut : tarif introuvable = erreur explicite.</td></tr>
+<tr><td class="k">CartService</td><td><code>addLine</code> · <code>updateQty</code> · <code>removeLine</code> · <code>validate</code></td><td><code>validate</code> ne modifie pas le panier : il retourne la liste des écarts (indisponibilité, prix changé, produit retiré).</td></tr>
+<tr><td class="k">OrderService</td><td><code>submit</code> · <code>validate</code> · <code>reject</code> · <code>cancel</code> · <code>applyErpEvent</code></td><td>Seul détenteur de la machine à états. Toute transition passe par lui et écrit dans <code>order_state_log</code>.</td></tr>
+<tr><td class="k">ReservationService</td><td><code>hold</code> · <code>consume</code> · <code>release</code> · <code>expireDue</code></td><td>Verrou pessimiste sur les lignes concernées. Expiration balayée toutes les minutes.</td></tr>
+<tr><td class="k">OutboxService</td><td><code>enqueue</code> · <code>lease</code> · <code>ack</code> · <code>requeueExpired</code></td><td><code>enqueue</code> est appelé dans la transaction métier ; le reste est appelé par le connecteur.</td></tr>
+<tr><td class="k">ReconciliationService</td><td><code>run(snapshot)</code></td><td>Compare snapshot et projection, produit un rapport, applique les corrections, journalise les écarts.</td></tr>
+<tr><td class="k">SyncHealthService</td><td><code>metrics(window)</code> · <code>deadLetters()</code> · <code>replay(ids)</code></td><td>Alimente la supervision. Le rejeu réinjecte l'événement conservé, sans le modifier.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="rules">
+<h2><span class="num">9</span> Règles métier</h2>
+<table>
+<thead><tr><th>Réf.</th><th>Règle</th><th>Statut</th></tr></thead>
+<tbody>
+<tr><td class="k">RM-01</td><td>Aucun compte ne peut commander avant validation manuelle par SIA (<code>status = ACTIVE</code> et rattachement à un client YME établi).</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-02</td><td>Un utilisateur ne voit que les prix de son propre rattachement client. Aucun prix public sans session authentifiée.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-03</td><td>La plateforme ne crée, ne modifie et ne supprime jamais un produit, un stock ou un tarif. Ces données n'existent côté plateforme que par projection.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-04</td><td>Un produit sans prix résolu pour le client connecté n'est pas commandable : il s'affiche « prix sur demande » et le bouton d'ajout est inactif.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-05</td><td>Un produit <code>INACTIVE</code> reste accessible par son URL (historique, référencement) mais n'est pas commandable et disparaît des listes.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-06</td><td>La quantité commandée doit respecter le conditionnement de vente (multiple, minimum) porté par la projection produit.</td><td><span class="chip chip-tbd">Dépend TBD-01</span></td></tr>
+<tr><td class="k">RM-07</td><td>Toute soumission est précédée d'une revalidation. Un écart de prix ou de disponibilité interrompt la soumission et est présenté au client, qui doit accepter explicitement.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-08</td><td>Une commande soumise pose des réservations locales valables 48 h. À expiration sans validation, elles sont libérées et la commande reste soumise, signalée dans le back-office.</td><td><span class="chip chip-own">Arrêté — durée ajustable</span></td></tr>
+<tr><td class="k">RM-09</td><td>Le client peut annuler sa commande tant qu'elle est en <code>SUBMITTED</code>. Après <code>VALIDATED</code>, l'annulation passe par SIA.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-10</td><td>Une confirmation partielle de YME est un état normal : les quantités confirmées font foi, l'écart est notifié au client et au back-office, la commande passe <code>PARTIALLY_CONFIRMED</code>.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+<tr><td class="k">RM-11</td><td>La disponibilité affichée est accompagnée de son âge. Au-delà d'un seuil de retard d'ingestion, un avertissement explicite remplace la quantité.</td><td><span class="chip chip-tbd">Seuil : TBD-07</span></td></tr>
+<tr><td class="k">RM-12</td><td>Le dépassement d'encours ou de plafond de crédit ne bloque pas la commande côté plateforme ; il est signalé au back-office pour arbitrage.</td><td><span class="chip chip-tbd">À confirmer — TBD-12</span></td></tr>
+<tr><td class="k">RM-13</td><td>Les promotions plateforme ne peuvent jamais produire un prix inférieur à un plancher défini par SIA.</td><td><span class="chip chip-tbd">Plancher : TBD-10</span></td></tr>
+<tr><td class="k">RM-14</td><td>Les lignes de commande conservent un instantané du libellé et du prix. L'historique client est immuable.</td><td><span class="chip chip-own">Arrêté</span></td></tr>
+</tbody>
+</table>
+<h3>Machine à états de la commande</h3>
+<pre>DRAFT ──submit──► SUBMITTED ──valider(SIA)──► VALIDATED ──outbox lease──► EXPORTED
+                      │                           │                            │
+                 annuler(client)             refuser(SIA)              order.acknowledged
+                      ▼                           ▼                            ▼
+                  CANCELLED                    REJECTED                  ACKNOWLEDGED
+                                                                               │
+                                              order.confirmed ─────────────────┤
+                                                                               ▼
+                                    CONFIRMED  ou  PARTIALLY_CONFIRMED ──► SHIPPED ──► DELIVERED ──► CLOSED
+                                                                               │
+                                                       order.rejected ──► REJECTED (réservations libérées)</pre>
+<table>
+<thead><tr><th>État</th><th>Déclencheur d'entrée</th><th>Effets</th></tr></thead>
+<tbody>
+<tr><td class="k">SUBMITTED</td><td>Client</td><td>Numéro attribué, réservations posées, notification SIA, panier vidé</td></tr>
+<tr><td class="k">VALIDATED</td><td>Admin SIA</td><td>Message d'outbox écrit dans la même transaction</td></tr>
+<tr><td class="k">EXPORTED</td><td>Retrait par le connecteur</td><td>Horodatage de remise, compteur de livraison</td></tr>
+<tr><td class="k">ACKNOWLEDGED</td><td class="m">order.acknowledged</td><td>Enregistrement de <code>erp_document_ref</code></td></tr>
+<tr><td class="k">CONFIRMED</td><td class="m">order.confirmed</td><td>Quantités confirmées, réservations consommées, notification client</td></tr>
+<tr><td class="k">PARTIALLY_CONFIRMED</td><td class="m">order.confirmed</td><td>Écart par ligne, réservations ajustées, notification des deux côtés</td></tr>
+<tr><td class="k">REJECTED</td><td>Admin ou YME</td><td>Motif obligatoire, réservations libérées</td></tr>
+<tr><td class="k">CANCELLED</td><td>Client (avant validation)</td><td>Réservations libérées</td></tr>
+</tbody>
+</table>
+<div class="note rule"><div class="note-title">Invariant</div><p>Aucune transition n'est écrite sans une ligne correspondante dans <code>order_state_log</code>, portant l'acteur et, le cas échéant, l'<code>event_id</code> qui l'a causée. C'est la base de l'auditabilité et du support.</p></div>
+</section>
+
+<section id="errors">
+<h2><span class="num">10</span> Cas limites &amp; erreurs</h2>
+<h3>10.1 Enveloppe d'erreur unique</h3>
+<pre>HTTP 409
+{
+  "timestamp": "2026-09-11T08:14:22Z",
+  "traceId":   "7c9a1f…",           <i>présent dans tous les journaux</i>
+  "code":      "STOCK_INSUFFICIENT", <i>stable, documenté, exploitable par le client</i>
+  "message":   "Quantité indisponible pour 3 lignes.",
+  "details": [
+    { "field": "lines[2].quantity", "issue": "requested=12 available=4" }
+  ]
+}</pre>
+<h3>10.2 Catalogue des erreurs</h3>
+<table>
+<thead><tr><th>Code</th><th>HTTP</th><th>Situation</th><th>Comportement</th></tr></thead>
+<tbody>
+<tr><td class="k">AUTH_INVALID_CREDENTIALS</td><td class="m">401</td><td>Identifiants erronés</td><td>Message uniforme, pas d'indication sur l'existence du compte. Limitation après 5 échecs.</td></tr>
+<tr><td class="k">AUTH_ACCOUNT_PENDING</td><td class="m">403</td><td>Compte non encore validé par SIA</td><td>Message explicite, aucune donnée catalogue servie</td></tr>
+<tr><td class="k">AUTH_ACCOUNT_SUSPENDED</td><td class="m">403</td><td>Compte suspendu</td><td>Sessions existantes révoquées</td></tr>
+<tr><td class="k">CUSTOMER_NOT_LINKED</td><td class="m">409</td><td>Compte sans rattachement client YME</td><td>Ni prix ni commande. Signalé au back-office.</td></tr>
+<tr><td class="k">PRODUCT_NOT_FOUND</td><td class="m">404</td><td>Référence absente des projections</td><td>Journalisé : peut signaler un retard d'ingestion plutôt qu'une erreur client</td></tr>
+<tr><td class="k">PRODUCT_INACTIVE</td><td class="m">409</td><td>Produit désactivé par YME</td><td>Fiche consultable, ajout refusé</td></tr>
+<tr><td class="k">PRICE_UNRESOLVED</td><td class="m">409</td><td>Aucun tarif applicable</td><td>Ajout refusé, « prix sur demande », alerte back-office</td></tr>
+<tr><td class="k">PACKAGING_VIOLATION</td><td class="m">422</td><td>Quantité hors conditionnement</td><td>Retourne le multiple attendu et la quantité corrigée proposée</td></tr>
+<tr><td class="k">STOCK_INSUFFICIENT</td><td class="m">409</td><td>Disponibilité projetée inférieure au besoin</td><td>Retourne le disponible par ligne ; le client peut ajuster</td></tr>
+<tr><td class="k">STOCK_DATA_STALE</td><td class="m">409</td><td>Retard d'ingestion au-delà du seuil</td><td>Selon politique TBD-07 : blocage ou acceptation avec avertissement explicite</td></tr>
+<tr><td class="k">CART_REVALIDATION_REQUIRED</td><td class="m">409</td><td>Écart détecté entre panier et projections</td><td>Retourne la liste des écarts ; acceptation explicite requise</td></tr>
+<tr><td class="k">ORDER_DUPLICATE_SUBMISSION</td><td class="m">200</td><td>Même <code>Idempotency-Key</code> rejouée</td><td>Retourne la commande initiale, sans doublon</td></tr>
+<tr><td class="k">ORDER_INVALID_TRANSITION</td><td class="m">409</td><td>Transition interdite par la machine à états</td><td>Retourne l'état courant et les transitions possibles</td></tr>
+<tr><td class="k">ORDER_NOT_CANCELLABLE</td><td class="m">409</td><td>Annulation après validation</td><td>Oriente vers le contact SIA</td></tr>
+<tr><td class="k">INGEST_SIGNATURE_INVALID</td><td class="m">401</td><td>Signature HMAC fausse ou horodatage hors fenêtre</td><td>Rejet, alerte sécurité, aucune écriture</td></tr>
+<tr><td class="k">INGEST_SOURCE_UNKNOWN</td><td class="m">403</td><td>Source non enregistrée ou désactivée</td><td>Rejet et alerte</td></tr>
+<tr><td class="k">INGEST_ENVELOPE_INVALID</td><td class="m">422</td><td>Champ d'enveloppe manquant ou mal typé</td><td>Rejet détaillé champ par champ. Le connecteur doit pouvoir corriger sans support.</td></tr>
+<tr><td class="k">INGEST_SCHEMA_UNSUPPORTED</td><td class="m">422</td><td><code>schemaVersion</code> inconnue</td><td>Rejet. Jamais d'interprétation approximative (P6).</td></tr>
+<tr><td class="k">INGEST_DUPLICATE</td><td class="m">202</td><td><code>eventId</code> déjà reçu</td><td>Acquitté avec <code>duplicate: true</code>. Le connecteur peut rejouer sans risque.</td></tr>
+<tr><td class="k">INGEST_PAYLOAD_TOO_LARGE</td><td class="m">413</td><td>Au-delà de la taille maximale (défaut 1 Mo, snapshots exclus)</td><td>Oriente vers l'endpoint de snapshot</td></tr>
+<tr><td class="k">OUTBOX_ACK_UNKNOWN</td><td class="m">404</td><td>Accusé sur un message inexistant ou déjà acquitté</td><td>Idempotent : réponse <code>200</code> si déjà acquitté, <code>404</code> si inconnu</td></tr>
+<tr><td class="k">RATE_LIMITED</td><td class="m">429</td><td>Quota dépassé</td><td>En-tête <code>Retry-After</code></td></tr>
+<tr><td class="k">INTERNAL_ERROR</td><td class="m">500</td><td>Anomalie non prévue</td><td><code>traceId</code> retourné, aucune fuite de détail technique</td></tr>
+</tbody>
+</table>
+<h3>10.3 Cas limites d'intégration et parti pris</h3>
+<table>
+<thead><tr><th>Cas</th><th>Décision</th></tr></thead>
+<tbody>
+<tr><td>Deux <code>stock.changed</code> arrivent dans le désordre</td><td>Celui dont <code>entityVersion</code> est inférieure ou égale à la version projetée est marqué <code>SUPERSEDED</code> et ignoré. Sans <code>entityVersion</code>, repli sur <code>occurredAt</code> (moins sûr — TBD).</td></tr>
+<tr><td>Événement pour une référence inconnue</td><td>Créée en projection avec <code>status = ORPHANED</code>, non publiée au catalogue, listée en supervision jusqu'à l'arrivée du <code>product.upserted</code> correspondant.</td></tr>
+<tr><td>Stock projeté négatif</td><td>Accepté et stocké tel quel (c'est l'état réel de YME), disponibilité plafonnée à 0 à l'affichage, alerte levée.</td></tr>
+<tr><td>Commande sur une donnée périmée (survente)</td><td>Assumé par conception : la plateforme n'engage pas le stock. YME confirme partiellement et le client est notifié (RM-10). Le tampon de sécurité réduit la fréquence du cas.</td></tr>
+<tr><td>Connecteur muet pendant des heures</td><td>Alerte dès le dépassement du seuil de retard. Le site continue de servir, avec l'âge des données visible. Aucune commande bloquée sauf politique TBD-07 contraire.</td></tr>
+<tr><td>Connecteur qui rejoue tout son historique</td><td>Absorbé par l'idempotence sur <code>eventId</code>. Les doublons sont acquittés sans effet ni charge de projection.</td></tr>
+<tr><td>Commande remise deux fois au connecteur</td><td>Remise au moins une fois assumée. L'injection côté YME doit être idempotente sur <code>orderNumber</code> — <b>exigence à porter au connecteur</b>.</td></tr>
+<tr><td>Produit supprimé dans YME alors qu'il est dans des paniers</td><td>Les lignes concernées sont marquées à revalider ; le client en est informé à l'entrée en validation, jamais après soumission.</td></tr>
+<tr><td>Prix changé entre l'ajout au panier et la soumission</td><td>Blocage à la revalidation avec affichage des deux prix. La soumission exige une acceptation explicite (RM-07).</td></tr>
+<tr><td>Plusieurs dépôts / magasins dans YME</td><td>Le modèle de projection prévoit une clé de dépôt. Faut-il agréger ou exposer par dépôt : TBD-02.</td></tr>
+<tr><td>Courtier Kafka indisponible</td><td>La réception continue : les événements s'accumulent en base et le connecteur reçoit ses <code>202</code>. Le relais reprend la publication au rétablissement, dans l'ordre. Alerte sur <code>kafka.relay.unpublished</code>.</td></tr>
+<tr><td>Un message empoisonne un consommateur</td><td>Tentatives sur topic de reprise, puis bascule en DLT. La partition n'est jamais bloquée : les autres références continuent d'être projetées.</td></tr>
+<tr><td>Rétention Kafka dépassée pendant un incident long</td><td>Le rejeu republie depuis <code>event_inbox</code> (90 jours). Le courtier n'est jamais la source de vérité d'un rejeu.</td></tr>
+<tr><td>Snapshot contredisant les événements incrémentaux</td><td>Le snapshot fait foi. Les écarts sont consignés dans le rapport de réconciliation et notifiés.</td></tr>
+<tr><td>Base de la plateforme restaurée après incident</td><td>Rejeu depuis <code>event_inbox</code> (90 j) puis application du dernier snapshot. Les commandes sont rétablies depuis la sauvegarde ; les messages d'outbox non acquittés sont re-servis.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="security">
+<h2><span class="num">11</span> Sécurité</h2>
+<table>
+<thead><tr><th>Surface</th><th>Mesure</th></tr></thead>
+<tbody>
+<tr><td>Clients B2B</td><td>Session par cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Lax</code> ; jeton opaque en Redis, révocable immédiatement. Mot de passe haché Argon2id.</td></tr>
+<tr><td>Back-office</td><td>Rôles <code>ADMIN</code> / <code>OPERATOR</code> / <code>VIEWER</code>. Second facteur recommandé. Toute action journalisée dans <code>audit_log</code>.</td></tr>
+<tr><td>Passerelle d'ingestion</td><td>HMAC-SHA256 sur le corps brut avec secret par source, horodatage signé, fenêtre de 5 minutes contre le rejeu, liste d'IP autorisées, mTLS en option. Secrets rotatifs avec chevauchement.</td></tr>
+<tr><td>Outbox</td><td>Même authentification que l'ingestion. Un jeton de source ne donne accès qu'à ses propres messages.</td></tr>
+<tr><td>Autorisation</td><td>Contrôle systématique du rattachement client sur toute lecture de prix, panier, commande. Aucun accès par identifiant devinable sans contrôle de propriété.</td></tr>
+<tr><td>Données</td><td>TLS en transit ; chiffrement au repos du volume et des sauvegardes ; aucune donnée de paiement stockée.</td></tr>
+<tr><td>Limitation de débit</td><td>Par IP et par compte sur l'authentification, la recherche et la soumission de commande. Quota séparé et généreux pour l'ingestion.</td></tr>
+<tr><td>Journalisation</td><td>Aucun secret, mot de passe ou payload complet en clair dans les journaux. Payloads accessibles uniquement via l'écran de supervision, tracé.</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="infra">
+<h2><span class="num">12</span> Infrastructure &amp; déploiement</h2>
+<div class="grid g2">
+<div class="box"><div class="box-title">Exécution</div><div class="box-items">VPS Linux, Docker Compose<br>Conteneurs : app (Spring Boot), postgres, kafka (KRaft), redis, nginx<br>Consommateurs dans le même processus applicatif, activés par profil<br>Kafka : volume dédié, 1 Go de heap suffisant à ce volume</div></div>
+<div class="box"><div class="box-title">Données</div><div class="box-items">PostgreSQL 16 — volume dédié<br>Sauvegarde chiffrée quotidienne vers S3/R2, rétention 30 j<br>WAL archivé pour restauration à un instant précis<br>Restauration testée et chronométrée avant mise en production</div></div>
+<div class="box"><div class="box-title">Objets &amp; diffusion</div><div class="box-items">S3 / Cloudflare R2 : médias, exports, archives d'événements<br>Accès applicatif par URL signée à durée limitée<br>Lecture publique des médias via CDN uniquement</div></div>
+<div class="box"><div class="box-title">Environnements</div><div class="box-items"><code>dev</code> local (Docker)<br><code>staging</code> — connecteur en mode simulé, jeu d'événements de test<br><code>prod</code><br>Secrets hors dépôt, injectés par variables d'environnement</div></div>
+</div>
+<h3>Livraison</h3>
+<ul>
+<li>CI : compilation, tests unitaires, tests d'intégration sur base réelle (Testcontainers), analyse statique, image Docker versionnée.</li>
+<li>Déploiement par image immuable ; migrations Flyway exécutées avant démarrage ; compatibilité ascendante du schéma exigée pour permettre un retour arrière.</li>
+<li>Sondes <code>/actuator/health</code> (liveness, readiness) ; readiness négative si le retard d'ingestion dépasse le seuil critique.</li>
+</ul>
+<h3>Objectifs de tenue</h3>
+<table>
+<thead><tr><th>Indicateur</th><th>Cible</th><th>Mesure</th></tr></thead>
+<tbody>
+<tr><td>Accusé d'ingestion</td><td>&lt; 50 ms (p95)</td><td>Métrique passerelle</td></tr>
+<tr><td>Événement reçu → visible sur le site</td><td>&lt; 5 s (p95), options A/B</td><td><code>projected_at − received_at</code></td></tr>
+<tr><td>Lecture de fiche produit</td><td>&lt; 200 ms (p95)</td><td>Métrique HTTP</td></tr>
+<tr><td>Recherche sur 48 000 références</td><td>&lt; 400 ms (p95)</td><td>Métrique HTTP</td></tr>
+<tr><td>Soumission de commande</td><td>&lt; 800 ms (p95)</td><td>Métrique HTTP</td></tr>
+<tr><td>Perte d'événement acquitté</td><td>0</td><td>Réconciliation quotidienne</td></tr>
+</tbody>
+</table>
+</section>
+
+<section id="observability">
+<h2><span class="num">13</span> Observabilité &amp; supervision</h2>
+<p>La supervision n'est pas un écran d'administration parmi d'autres : c'est l'instrument qui rend le flux événementiel vérifiable, et la base du support après mise en production.</p>
+<h3>Métriques exposées</h3>
+<table>
+<thead><tr><th>Métrique</th><th>Type</th><th>Seuil d'alerte</th></tr></thead>
+<tbody>
+<tr><td class="k">ingest.events.received</td><td>compteur par type et source</td><td>—</td></tr>
+<tr><td class="k">ingest.lag.seconds</td><td>jauge — âge du plus vieil événement non traité</td><td>&gt; 60 s : avertissement · &gt; 600 s : critique</td></tr>
+<tr><td class="k">kafka.consumer.lag</td><td>jauge par topic et groupe</td><td>&gt; 1 000 messages : avertissement</td></tr>
+<tr><td class="k">kafka.relay.unpublished</td><td>jauge — événements en base non encore publiés</td><td>&gt; 500 ou âge &gt; 60 s : courtier probablement indisponible</td></tr>
+<tr><td class="k">kafka.dlt.count</td><td>compteur par topic de rebut</td><td>&gt; 0 : avertissement immédiat</td></tr>
+<tr><td class="k">ingest.source.silence.seconds</td><td>jauge — temps depuis le dernier événement d'une source</td><td>Seuil par source (TBD-13)</td></tr>
+<tr><td class="k">ingest.deadletter.count</td><td>jauge</td><td>&gt; 0 : avertissement immédiat</td></tr>
+<tr><td class="k">ingest.sequence.gaps</td><td>compteur</td><td>&gt; 0 : critique</td></tr>
+<tr><td class="k">outbox.pending.age.seconds</td><td>jauge — commande validée non retirée</td><td>&gt; 900 s : avertissement</td></tr>
+<tr><td class="k">projection.staleness.seconds</td><td>histogramme par type d'entité</td><td>—</td></tr>
+<tr><td class="k">reconciliation.mismatches</td><td>jauge</td><td>&gt; 0 : à examiner</td></tr>
+</tbody>
+</table>
+<h3>Écrans de supervision (back-office)</h3>
+<ul>
+<li><b>Santé des flux</b> — dernier événement reçu par type, retard courant, débit sur 24 h.</li>
+<li><b>Journal des événements</b> — recherche par référence, type, période ; payload brut consultable ; état de traitement.</li>
+<li><b>File d'erreurs</b> — événements <code>DEAD</code> avec la cause, rejeu unitaire ou en lot.</li>
+<li><b>Outbox</b> — commandes validées en attente de retrait, âge, nombre de remises.</li>
+<li><b>Réconciliation</b> — dernier rapport, écarts par référence, historique.</li>
+</ul>
+<p>Traçabilité : chaque requête porte un <code>traceId</code> propagé dans les journaux et rendu dans les réponses d'erreur. Un incident client se diagnostique depuis un identifiant de commande jusqu'à l'événement YME qui l'a causé.</p>
+</section>
+
+<section id="tbd">
+<h2><span class="num">14</span> À définir avec le client</h2>
+<p>Points non décidables sans le client. Aucune valeur n'est supposée ici. Les éléments marqués <b>bloquant</b> conditionnent le développement des modules concernés.</p>
+<table>
+<thead><tr><th>Réf.</th><th>Question</th><th>Attendu du client</th><th>Bloque</th></tr></thead>
+<tbody>
+<tr><td class="k">TBD-01</td><td>Modèle de données <b>Produit</b> dans YME</td><td>Liste exhaustive des champs, types, longueurs, obligatoires ; référentiels de codes (familles, marques, unités) ; règles de conditionnement ; identifiant naturel stable ; export réel de 50 lignes représentatives</td><td><span class="chip chip-req">Bloquant</span> catalog, pricing</td></tr>
+<tr><td class="k">TBD-02</td><td>Modèle de données <b>Stock</b> dans YME</td><td>Notion exacte de quantité (physique, disponible, réservée ?) ; gestion multi-dépôt ; unité ; granularité et fréquence des variations ; existence d'un compteur de version</td><td><span class="chip chip-req">Bloquant</span> projection, cart, ordering</td></tr>
+<tr><td class="k">TBD-03</td><td>Modèle <b>Tarifs</b> et remises</td><td>Structure des tarifs par client, paliers quantitatifs, remises, arrondis ; où le prix final est calculé</td><td><span class="chip chip-req">Bloquant</span> pricing</td></tr>
+<tr><td class="k">TBD-04</td><td>Modèle <b>Client</b> dans YME</td><td>Identifiant client, tarif rattaché, conditions de règlement, encours, statut ; correspondance avec les comptes plateforme</td><td><span class="chip chip-req">Bloquant</span> identity, pricing</td></tr>
+<tr><td class="k">TBD-05</td><td>Format de la <b>commande</b> attendu par YME</td><td>Structure exacte d'une commande injectable, champs obligatoires, contraintes ; format des retours (accusé, confirmation, statut)</td><td><span class="chip chip-req">Bloquant</span> ordering, outbox</td></tr>
+<tr><td class="k">TBD-06</td><td><b>Transport d'ingestion</b> : option A, B, C ou D (§5.2)</td><td>Capacités techniques de YME ; qui développe et exploite le connecteur ; accès disponibles (déclencheurs, réplica, export)</td><td><span class="chip chip-req">Bloquant</span> ingestion</td></tr>
+<tr><td class="k">TBD-07</td><td>Politique de <b>donnée périmée</b></td><td>Au-delà de quel retard la disponibilité est masquée ; blocage ou avertissement ; valeur du tampon de sécurité</td><td>cart, ordering</td></tr>
+<tr><td class="k">TBD-08</td><td><b>Images et documents</b> produits</td><td>Qui les détient, sous quel format, comment ils sont transmis et rattachés aux références</td><td>content</td></tr>
+<tr><td class="k">TBD-09</td><td><b>Fiscalité et monnaie</b></td><td>Devise, nombre de décimales, règle d'arrondi, taux de TVA applicables, affichage HT ou TTC</td><td>pricing, ordering</td></tr>
+<tr><td class="k">TBD-10</td><td><b>Cumul des remises</b></td><td>Ordre d'application entre remise YME et promotion plateforme ; cumul autorisé ou exclusif ; prix plancher</td><td>pricing</td></tr>
+<tr><td class="k">TBD-11</td><td><b>Paiement</b></td><td>Le règlement reste-t-il hors plateforme ? Si non : moyen, prestataire, rapprochement avec YME</td><td>hors périmètre actuel</td></tr>
+<tr><td class="k">TBD-12</td><td><b>Encours client</b></td><td>La plateforme doit-elle bloquer une commande dépassant le plafond, ou seulement le signaler (RM-12) ?</td><td>ordering</td></tr>
+<tr><td class="k">TBD-13</td><td><b>Fenêtres d'exploitation</b></td><td>Heures d'ouverture, plages d'indisponibilité planifiée de YME, seuils de silence acceptables par type de flux</td><td>ops</td></tr>
+<tr><td class="k">TBD-14</td><td><b>Environnement de test client</b></td><td>Existe-t-il une instance de test de YME ? Sinon, comment valider l'intégration sans toucher la production ?</td><td>recette</td></tr>
+</tbody>
+</table>
+<div class="note warn"><div class="note-title">Séquencement</div><p>TBD-01 à TBD-06 doivent être traités lors de l'atelier technique d'ouverture. Tant qu'ils sont ouverts, le développement peut porter sur l'infrastructure, l'authentification, la passerelle d'ingestion (enveloppe et garanties, payload opaque), le panier, la machine à états de commande et le back-office — mais ni les projections, ni la résolution de prix, ni l'export de commande.</p></div>
+</section>
+</main>
+</body>
+</html>

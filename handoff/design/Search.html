@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA B2B — Recherche</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/app.css" />
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="data/mockData.js?v=3"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel" src="components/Chrome.jsx"></script>
+<script type="text/babel" src="components/Product.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useMemo } = React;
+
+function FilterChip({ label, active, onClick, onRemove }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 6,
+        padding: '6px 12px',
+        background: active ? 'var(--ink)' : 'var(--surface)',
+        color: active ? 'white' : 'var(--ink-2)',
+        border: `1px solid ${active ? 'var(--ink)' : 'var(--border)'}`,
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 500,
+        transition: 'all 0.15s',
+      }}
+    >
+      {label}
+      {active && onRemove && (
+        <span onClick={e => { e.stopPropagation(); onRemove(); }} style={{ cursor: 'pointer', opacity: 0.7 }}>
+          <Icon name="x" size={10} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function FilterGroup({ label, options, value, onChange }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        style={{
+          width: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '10px 14px',
+          background: value ? 'var(--sia-red-soft)' : 'var(--surface)',
+          border: `1px solid ${value ? 'var(--sia-red-border)' : 'var(--border)'}`,
+          borderRadius: 8,
+          fontSize: 12,
+          fontWeight: 600,
+          color: value ? 'oklch(0.40 0.18 25)' : 'var(--ink-2)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
+        <span>{value || label}</span>
+        <Icon name="chevronDown" size={12} />
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setOpen(false)} />
+          <div className="menu" style={{ top: 44, left: 0, right: 0, zIndex: 50, maxHeight: 260, overflow: 'auto' }}>
+            <button onClick={() => { onChange(null); setOpen(false); }} style={{ color: 'var(--ink-3)' }}>
+              <Icon name="x" size={12} /> Tout afficher
+            </button>
+            <div className="divider"></div>
+            {options.map(o => (
+              <button key={o} onClick={() => { onChange(o); setOpen(false); }} style={{ fontWeight: value === o ? 700 : 500 }}>
+                {value === o && <Icon name="check" size={12} />}
+                {value !== o && <span style={{ width: 12 }}></span>}
+                {o}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function App() {
+  const { count } = useCart();
+  const [vehicle, setVehicle] = useState(null);
+  const [activeFilters, setActiveFilters] = useState({ supplier: null, family: null, status: null, brand: null });
+  const [sortBy, setSortBy] = useState('relevance');
+  const [page, setPage] = useState(1);
+  const [infoProduct, setInfoProduct] = useState(null);
+  const [compatProduct, setCompatProduct] = useState(null);
+  const [view, setView] = useState('table');
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const queryText = urlParams.get('q') || '';
+  const qBrand = urlParams.get('brand');
+
+  const PRODUCTS = window.SIA_DATA.PRODUCTS;
+
+  const filtered = useMemo(() => {
+    let list = PRODUCTS;
+    if (activeFilters.supplier) list = list.filter(p => p.supplier === activeFilters.supplier);
+    if (activeFilters.family) list = list.filter(p => p.family === activeFilters.family);
+    if (activeFilters.status) list = list.filter(p => p.status.key === activeFilters.status);
+    if (queryText) {
+      const q = queryText.toLowerCase();
+      list = list.filter(p => p.ref.toLowerCase().includes(q) || p.name.toLowerCase().includes(q) || p.supplier.toLowerCase().includes(q));
+    }
+    if (sortBy === 'price-asc') list = [...list].sort((a, b) => a.price - b.price);
+    if (sortBy === 'price-desc') list = [...list].sort((a, b) => b.price - a.price);
+    if (sortBy === 'discount') list = [...list].sort((a, b) => b.discount - a.discount);
+    return list;
+  }, [activeFilters, sortBy, queryText]);
+
+  const perPage = 10;
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const suppliers = [...new Set(PRODUCTS.map(p => p.supplier))].sort();
+  const families = window.SIA_DATA.FAMILIES;
+
+  return (
+    <>
+      <AppHeader cartCount={count} />
+      <SessionTimer />
+      <VehicleBar vehicle={vehicle} onChange={setVehicle} />
+
+      <div className="page">
+        {/* Breadcrumb + context */}
+        <div className="breadcrumb">
+          <a href="Home.html">Accueil</a>
+          <Icon name="chevronRight" size={12} />
+          <span>Recherche</span>
+          {qBrand && <><Icon name="chevronRight" size={12} /><span style={{ color: 'var(--ink)', fontWeight: 600 }}>{qBrand}</span></>}
+        </div>
+
+        {/* Vehicle context banner (if active) */}
+        {qBrand && (
+          <div style={{ background: 'linear-gradient(90deg, var(--ink) 0%, oklch(0.28 0.01 250) 100%)', color: 'white', padding: '14px 20px', borderRadius: 10, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 8, background: 'oklch(0.32 0.01 250)', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-mono)', fontWeight: 800, fontSize: 11 }}>{qBrand.slice(0,4)}</div>
+              <div>
+                <div style={{ fontSize: 11, color: 'oklch(0.75 0.01 250)', letterSpacing: '0.05em', textTransform: 'uppercase', fontWeight: 600 }}>Véhicule sélectionné</div>
+                <div style={{ fontSize: 16, fontWeight: 700 }}>{qBrand} 100 C3 (443.444) · ESSENCE 2.2 · 159CH-117KW [1985-1988]</div>
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-sm" style={{ background: 'oklch(0.32 0.01 250)', color: 'white', borderColor: 'oklch(0.38 0.01 250)' }}>
+              <Icon name="edit" size={12} /> Modifier
+            </button>
+          </div>
+        )}
+
+        {/* Results header */}
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">
+              {filtered.length} articles trouvés
+              {queryText && <span style={{ color: 'var(--sia-red)' }}> pour « {queryText} »</span>}
+            </h1>
+            <div className="page-sub">Triés par {sortBy === 'relevance' ? 'pertinence' : sortBy === 'price-asc' ? 'prix croissant' : sortBy === 'price-desc' ? 'prix décroissant' : 'remise'}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <select className="select" style={{ width: 200 }} value={sortBy} onChange={e => setSortBy(e.target.value)}>
+              <option value="relevance">Trier : Pertinence</option>
+              <option value="price-asc">Prix croissant</option>
+              <option value="price-desc">Prix décroissant</option>
+              <option value="discount">Meilleure remise</option>
+            </select>
+            <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 6, padding: 2 }}>
+              <button onClick={() => setView('table')} style={{ padding: '6px 10px', borderRadius: 4, background: view === 'table' ? 'var(--ink)' : 'transparent', color: view === 'table' ? 'white' : 'var(--ink-3)' }}><Icon name="list" size={14} /></button>
+              <button onClick={() => setView('grid')} style={{ padding: '6px 10px', borderRadius: 4, background: view === 'grid' ? 'var(--ink)' : 'transparent', color: view === 'grid' ? 'white' : 'var(--ink-3)' }}><Icon name="grid" size={14} /></button>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="card" style={{ padding: 16, marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+            <Icon name="filter" size={14} style={{ color: 'var(--ink-3)' }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--ink-2)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Filtres</span>
+            <div style={{ flex: 1 }} />
+            <button
+              onClick={() => setActiveFilters({ supplier: null, family: null, status: null, brand: null })}
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: 11 }}
+            >
+              <Icon name="refresh" size={12} /> Réinitialiser
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+            <FilterGroup label="Disponibilité" options={['En stock', 'Stock faible', 'En arrivage', 'Indisponible']} value={activeFilters.status === 'ok' ? 'En stock' : activeFilters.status === 'low' ? 'Stock faible' : activeFilters.status === 'arrival' ? 'En arrivage' : activeFilters.status === 'oos' ? 'Indisponible' : null} onChange={v => setActiveFilters(f => ({ ...f, status: v === 'En stock' ? 'ok' : v === 'Stock faible' ? 'low' : v === 'En arrivage' ? 'arrival' : v === 'Indisponible' ? 'oos' : null }))} />
+            <FilterGroup label="Famille" options={families} value={activeFilters.family} onChange={v => setActiveFilters(f => ({ ...f, family: v }))} />
+            <FilterGroup label="Marque de pièce" options={suppliers} value={activeFilters.supplier} onChange={v => setActiveFilters(f => ({ ...f, supplier: v }))} />
+            <FilterGroup label="Sous-famille" options={['Filtre huile', 'Filtre air', 'Filtre carburant']} value={null} onChange={() => {}} />
+          </div>
+        </div>
+
+        {/* Results */}
+        {view === 'table' ? (
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>Marque &amp; Référence</th>
+                  <th>Désignation</th>
+                  <th>Prix &amp; disponibilité</th>
+                  <th>Quantité</th>
+                  <th>Origine</th>
+                  <th>Information</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pageItems.map(p => (
+                  <ProductRow
+                    key={p.id}
+                    product={p}
+                    onInfo={setInfoProduct}
+                    onCompatibles={setCompatProduct}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
+            {pageItems.map(p => (
+              <div key={p.id} className="card" style={{ padding: 16 }}>
+                <div style={{ position: 'relative' }}>
+                  <ProductImage product={p} size={220} />
+                  <div style={{ position: 'absolute', top: 10, left: 10, padding: '3px 8px', background: 'white', border: '1px solid var(--border)', borderRadius: 999, fontSize: 10, fontWeight: 700 }}>{p.supplier}</div>
+                  {p.discount > 0 && <div style={{ position: 'absolute', top: 10, right: 10, padding: '3px 8px', background: 'var(--sia-red)', color: 'white', borderRadius: 999, fontSize: 10, fontWeight: 700 }}>−{p.discount}%</div>}
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 12 }}>{p.ref}</div>
+                <div style={{ fontWeight: 700, fontSize: 14, textTransform: 'uppercase', marginTop: 4, letterSpacing: '-0.01em' }}>{p.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 4 }}>{p.family}</div>
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  {(p.status.key === 'ok' || p.status.key === 'low') ? (
+                    <div className="mono tnum" style={{ fontWeight: 700, fontSize: 16 }}>{p.price.toFixed(3)} <span style={{ fontSize: 10, color: 'var(--ink-3)' }}>DT</span></div>
+                  ) : <StatusPill status={p.status} />}
+                  {(p.status.key === 'ok' || p.status.key === 'low') && (
+                    <button className="btn btn-primary btn-sm" onClick={() => Cart.add(p)}>
+                      <Icon name="cart" size={12} />
+                    </button>
+                  )}
+                </div>
+                <div style={{ marginTop: 10, display: 'flex', gap: 6 }}>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setInfoProduct(p)}>Détails</button>
+                  <button className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: 'center' }} onClick={() => setCompatProduct(p)}>Compat.</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pagination */}
+        <div style={{ marginTop: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+          <button onClick={() => setPage(Math.max(1, page - 1))} className="btn btn-ghost btn-sm" style={{ padding: '6px 10px' }} disabled={page === 1}>
+            <Icon name="chevronLeft" size={14} />
+          </button>
+          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map(n => (
+            <button
+              key={n}
+              onClick={() => setPage(n)}
+              className={n === page ? 'btn btn-primary btn-sm' : 'btn btn-ghost btn-sm'}
+              style={{ minWidth: 36, justifyContent: 'center' }}
+            >{n}</button>
+          ))}
+          <button onClick={() => setPage(Math.min(totalPages, page + 1))} className="btn btn-ghost btn-sm" style={{ padding: '6px 10px' }} disabled={page === totalPages}>
+            <Icon name="chevronRight" size={14} />
+          </button>
+        </div>
+      </div>
+
+      {infoProduct && <ProductModal product={infoProduct} onClose={() => setInfoProduct(null)} onShowCompatibles={(p) => { setInfoProduct(null); setCompatProduct(p); }} />}
+      {compatProduct && <CompatiblesModal product={compatProduct} onClose={() => setCompatProduct(null)} />}
+
+      <AppFooter />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

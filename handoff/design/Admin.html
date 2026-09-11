@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" /><link rel="stylesheet" href="styles/app.css" />
+<style>
+body { overflow: hidden; }
+.admin-shell { display: flex; height: 100vh; }
+.admin-content { flex: 1; overflow-y: auto; background: var(--bg); min-width: 0; }
+.admin-topbar { position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 28px; height: 58px; display: flex; align-items: center; gap: 16px; }
+.admin-topbar h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+.admin-section { padding: 24px 28px; }
+.aph { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 20px; gap: 16px; }
+.aph h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.aph .sub { margin: 3px 0 0; color: var(--ink-3); font-size: 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data/mockData.js?v=3"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel" src="components/Product.jsx"></script>
+<script type="text/babel" src="components/Admin.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// Dashboard
+function Dashboard() {
+  const revData = [28, 34, 29, 42, 38, 51, 46, 55, 49, 62, 58, 68, 72, 65, 78, 82, 75, 88, 92, 85, 98, 105, 99, 112, 108, 118, 125, 132, 128, 140];
+  const catData = [145, 220, 180, 95, 130, 75, 110, 85];
+  const catLabels = ['FILT', 'FRN', 'MOT', 'TRN', 'SUS', 'ELC', 'CAR', 'DIR'];
+  return (
+    <div className="admin-section" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <Kpi label="CA du jour" value="18 420 DT" delta={{ up: true, v: '+12,4 %' }} />
+        <Kpi label="Commandes en cours" value="42" sub="12 en préparation" accent />
+        <Kpi label="Taux de conversion" value="3,8 %" delta={{ up: true, v: '+0,4 pt' }} />
+        <Kpi label="Panier moyen" value="348 DT" delta={{ up: false, v: '−2,1 %' }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 16 }}>
+        <div className="card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>Revenus 30 derniers jours</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>Total : 485 240 DT</div>
+            </div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {['Jour', 'Semaine', 'Mois', 'Année'].map((p, i) => (
+                <button key={p} className="btn btn-sm" style={{ background: i === 2 ? 'var(--ink)' : 'transparent', color: i === 2 ? 'white' : 'var(--ink-3)', border: '1px solid var(--border)' }}>{p}</button>
+              ))}
+            </div>
+          </div>
+          <LineChart data={revData} />
+        </div>
+
+        <div className="card" style={{ padding: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>Ventes par famille</div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 }}>Nb d'articles vendus ce mois</div>
+          <BarChart data={catData} labels={catLabels} color="var(--sia-red)" />
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: 14, fontWeight: 700 }}>Alertes actives</div>
+            <span className="badge badge-danger">5</span>
+          </div>
+          {[
+            { type: 'danger', icon: 'alert', t: '4 produits en rupture de stock', d: 'ELRING 342.093 · TRW 81-3310 · CHAMPION RD53…' },
+            { type: 'warn', icon: 'clock', t: '3 commandes en attente > 24 h', d: 'CV26004234 · CV26004188 · CV26004185' },
+            { type: 'info', icon: 'inbox', t: '7 tickets clients non traités', d: 'Support technique · Dernier il y a 2 h' },
+            { type: 'warn', icon: 'credit', t: '2 factures en retard de paiement', d: 'FAC26-00689 · FAC26-00702 (total 2 590 DT)' },
+          ].map((a, i) => (
+            <div key={i} style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: a.type === 'danger' ? 'var(--sia-red-soft)' : a.type === 'warn' ? 'var(--warn-soft)' : 'var(--info-soft)', color: a.type === 'danger' ? 'var(--sia-red)' : a.type === 'warn' ? 'oklch(0.55 0.15 75)' : 'var(--info)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                <Icon name={a.icon} size={14} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{a.t}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{a.d}</div>
+              </div>
+              <button className="btn btn-ghost btn-sm">Voir</button>
+            </div>
+          ))}
+        </div>
+
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', fontSize: 14, fontWeight: 700 }}>Top produits vendus — ce mois</div>
+          {window.SIA_DATA.PRODUCTS.slice(0, 6).map((p, i) => (
+            <div key={p.id} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <div style={{ width: 24, color: 'var(--ink-4)', fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: 12 }}>#{i + 1}</div>
+              <div style={{ width: 36, height: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, display: 'grid', placeItems: 'center', color: 'var(--ink-3)' }}><Icon name="box" size={14} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textTransform: 'uppercase' }}>{p.name}</div>
+                <div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{p.supplier} · {p.ref}</div>
+              </div>
+              <div className="mono tnum" style={{ fontWeight: 700 }}>{120 - i * 14}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helpers locaux Admin
+const ORDER_STEPS_ADMIN = (window.SIA_DATA && window.SIA_DATA.ORDER_STEPS) || [
+  { key: 'reserved',  label: 'Bon de commande généré',   icon: 'file' },
+  { key: 'pending',   label: 'En attente de validation', icon: 'clock' },
+  { key: 'validated', label: 'Validée par SIA',          icon: 'check' },
+  { key: 'preparing', label: 'En préparation',           icon: 'layers' },
+  { key: 'shipped',   label: 'En cours d\'expédition',   icon: 'truck' },
+  { key: 'delivered', label: 'Livrée',                   icon: 'box' },
+  { key: 'paid',      label: 'Paiement confirmé',        icon: 'credit' },
+];
+function adminGetStepIndex(key) {
+  if (key === 'rejected') return -1;
+  return ORDER_STEPS_ADMIN.findIndex(s => s.key === key);
+}
+function adminGetOrderStatus(stepKey) {
+  if (stepKey === 'rejected') return { label: 'Rejetée', color: 'danger' };
+  const step = ORDER_STEPS_ADMIN.find(s => s.key === stepKey);
+  const colorMap = { reserved: 'info', pending: 'warn', validated: 'info', preparing: 'warn', shipped: 'info', delivered: 'ok', paid: 'ok' };
+  return { label: step ? step.label : stepKey, color: colorMap[stepKey] || 'info' };
+}
+
+// Orders list — Admin
+function OrdersAdmin() {
+  const ORDERS = (window.SIA_DATA && window.SIA_DATA.ORDERS) || [];
+  const [orders, setOrders] = React.useState(ORDERS.map((o, i) => ({ ...o, ymeSynced: o.ymeSynced ?? (o.stepKey === 'paid' || i % 3 === 0) })));
+  const [selected, setSelected] = React.useState(null);
+
+  const validate = (id, action) => {
+    setOrders(prev => prev.map(o => {
+      if (o.id !== id) return o;
+      if (action === 'validate') return { ...o, stepKey: 'validated', color: 'info' };
+      if (action === 'reject')   return { ...o, stepKey: 'rejected',  color: 'danger' };
+      if (action === 'prepare')  return { ...o, stepKey: 'preparing', color: 'warn' };
+      if (action === 'ship')     return { ...o, stepKey: 'shipped',   color: 'info', bl: `BL26-0${String(Date.now()).slice(-5)}` };
+      if (action === 'deliver')  return { ...o, stepKey: 'delivered', color: 'ok' };
+      if (action === 'pay')      return { ...o, stepKey: 'paid',      color: 'ok', paymentConfirmed: true };
+      if (action === 'yme_confirm') return { ...o, ymeSynced: true, ymeSyncedAt: new Date().toLocaleDateString('fr-FR'), ymeSyncedBy: 'Admin' };
+      return o;
+    }));
+  };
+
+  if (selected) {
+    const order = orders.find(o => o.id === selected.id) || selected;
+    return <AdminOrderDetail order={order} onBack={() => setSelected(null)} onAction={(id, a) => validate(id, a)} />;
+  }
+
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="En attente validation" value={orders.filter(o => o.stepKey === 'pending').length} sub="À traiter" accent />
+        <Kpi label="En préparation" value={orders.filter(o => o.stepKey === 'preparing').length} />
+        <Kpi label="Expédiées" value={orders.filter(o => o.stepKey === 'shipped').length} />
+        <Kpi label="Paiement en attente" value={orders.filter(o => ['delivered','shipped'].includes(o.stepKey) && !o.paymentConfirmed).length} sub="à confirmer" />
+        <Kpi label="Non saisies en YME" value={orders.filter(o => !o.ymeSynced).length} sub="saisie manuelle requise" accent />
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
+          <input className="input" placeholder="Rechercher par n° commande, BC, client..." style={{ flex: 1, maxWidth: 360 }} />
+          <select className="select" style={{ width: 200 }}>
+            <option>Tous statuts</option>
+            <option>En attente validation</option>
+            <option>Validée</option>
+            <option>En expédition</option>
+            <option>Livrée</option>
+            <option>Rejetée</option>
+          </select>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /> Export CSV</button>
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Commande</th><th>Bon de commande</th><th>Client</th><th>Statut</th><th>Date</th><th>Montant</th><th>Paiement</th><th>Synchro YME</th><th></th></tr></thead>
+          <tbody>
+            {orders.map(o => {
+              const { label, color } = adminGetOrderStatus(o.stepKey);
+              const clientNames = { 'CL0013059': 'ETS Ben Djemaa & Cie' };
+              return (
+                <tr key={o.id} onClick={() => setSelected(o)} style={{ cursor: 'pointer' }}>
+                  <td className="mono" style={{ fontWeight: 700 }}>{o.id}</td>
+                  <td className="mono" style={{ color: 'var(--ink-3)', fontSize: 12 }}>{o.bc}</td>
+                  <td style={{ fontWeight: 500, fontSize: 13 }}>{clientNames[o.client] || o.client}</td>
+                  <td><span className={`badge badge-${color}`}><span className={`dot dot-${color}`}></span>{label}</span></td>
+                  <td style={{ fontSize: 12, color: 'var(--ink-2)' }}>{o.date}</td>
+                  <td className="mono tnum" style={{ fontWeight: 700 }}>{o.total.toFixed(3)} DT</td>
+                  <td>
+                    {o.paymentConfirmed
+                      ? <span className="badge badge-ok"><span className="dot dot-ok"></span>Confirmé</span>
+                      : <span className="badge badge-neutral" style={{ opacity: 0.7 }}>En attente</span>}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap' }}>
+                      {o.ymeSynced
+                        ? <span className="badge badge-ok"><span className="dot dot-ok"></span>Saisie YME</span>
+                        : <>
+                            <span className="badge badge-warn"><span className="dot dot-warn"></span>Non saisie</span>
+                            <button className="btn btn-ghost btn-sm" title="Confirmer saisie manuelle YME" style={{ padding: '4px 6px' }}
+                              onClick={e => { e.stopPropagation(); validate(o.id, 'yme_confirm'); }}><Icon name="check" size={12} /></button>
+                          </>}
+                    </div>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {o.stepKey === 'pending' && <>
+                        <button className="btn btn-sm" style={{ background: 'var(--sia-red)', color: 'white', border: 'none', padding: '4px 10px' }}
+                          onClick={e => { e.stopPropagation(); validate(o.id, 'validate'); }}>
+                          <Icon name="check" size={12} /> Valider
+                        </button>
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--sia-red)', padding: '4px 8px' }}
+                          onClick={e => { e.stopPropagation(); validate(o.id, 'reject'); }}>
+                          <Icon name="x" size={12} />
+                        </button>
+                      </>}
+                      {o.stepKey !== 'pending' && <Icon name="chevronRight" size={14} style={{ color: 'var(--ink-4)' }} />}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function AdminOrderDetail({ order, onBack, onAction }) {
+  const { label, color } = adminGetOrderStatus(order.stepKey);
+  const stepIdx = adminGetStepIndex(order.stepKey);
+  const rejected = order.stepKey === 'rejected';
+  const [rejectNote, setRejectNote] = React.useState('');
+  const [showReject, setShowReject] = React.useState(false);
+  const products = window.SIA_DATA.PRODUCTS.slice(0, Math.min(order.items, 5));
+
+  return (
+    <div className="admin-section">
+      <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom: 16 }}><Icon name="chevronLeft" size={14} /> Retour à la liste</button>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, letterSpacing: '-0.02em' }} className="mono">{order.id}</h2>
+            <span className={`badge badge-${color}`}><span className={`dot dot-${color}`}></span>{label}</span>
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--ink-3)' }}>BC : <strong className="mono">{order.bc}</strong> · {order.date} · {order.items} articles · {order.paymentMethod}</div>
+        </div>
+        {/* Action buttons based on status */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {order.stepKey === 'pending' && !rejected && <>
+            <button className="btn btn-ghost" style={{ color: 'var(--sia-red)', border: '1px solid var(--sia-red-border)' }} onClick={() => setShowReject(true)}><Icon name="x" size={14} /> Rejeter</button>
+            <button className="btn btn-primary" onClick={() => onAction(order.id, 'validate')}><Icon name="check" size={14} /> Valider la commande</button>
+          </>}
+          {order.stepKey === 'validated' && <button className="btn btn-primary" onClick={() => onAction(order.id, 'prepare')}><Icon name="layers" size={14} /> Passer en préparation</button>}
+          {order.stepKey === 'preparing' && <button className="btn btn-primary" onClick={() => onAction(order.id, 'ship')}><Icon name="truck" size={14} /> Générer BL & Expédier</button>}
+          {order.stepKey === 'shipped' && <button className="btn btn-primary" onClick={() => onAction(order.id, 'deliver')}><Icon name="box" size={14} /> Confirmer livraison</button>}
+          {(order.stepKey === 'delivered' || order.stepKey === 'shipped') && !order.paymentConfirmed &&
+            <button className="btn btn-dark" onClick={() => onAction(order.id, 'pay')}><Icon name="credit" size={14} /> Confirmer paiement</button>}
+          {order.paymentConfirmed && <span className="badge badge-ok" style={{ padding: '8px 14px', fontSize: 13 }}><span className="dot dot-ok"></span>Paiement confirmé</span>}
+        </div>
+      </div>
+
+      {/* Statut de saisie ERP (YME) — la plateforme ne se connecte jamais à YME, la saisie y est manuelle */}
+      <div className="card" style={{ padding: '16px 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, background: order.ymeSynced ? undefined : 'var(--sia-red-soft)', borderColor: order.ymeSynced ? undefined : 'var(--sia-red-border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Icon name={order.ymeSynced ? 'check' : 'alert'} size={18} style={{ color: order.ymeSynced ? 'oklch(0.45 0.12 155)' : 'var(--sia-red)' }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{order.ymeSynced ? 'Saisie confirmée dans YME' : 'Commande non encore saisie dans YME'}</div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>
+              {order.ymeSynced
+                ? `Confirmée par ${order.ymeSyncedBy || 'un commercial'} le ${order.ymeSyncedAt || order.date}`
+                : 'La plateforme n\'a aucun accès entrant à YME — un commercial ou admin doit saisir cette commande dans l\'ERP puis confirmer ici.'}
+            </div>
+          </div>
+        </div>
+        {!order.ymeSynced && <button className="btn btn-dark" onClick={() => onAction(order.id, 'yme_confirm')}><Icon name="check" size={14} /> Confirmer saisie manuelle YME</button>}
+      </div>
+
+      {/* Reject dialog */}
+      {showReject && (
+        <div style={{ background: 'var(--sia-red-soft)', border: '1px solid var(--sia-red-border)', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+          <div style={{ fontWeight: 700, color: 'oklch(0.38 0.18 25)', marginBottom: 10 }}>Motif de rejet</div>
+          <textarea className="input" rows={2} placeholder="Ex : Article indisponible, stock insuffisant…" value={rejectNote} onChange={e => setRejectNote(e.target.value)} style={{ marginBottom: 10 }}></textarea>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowReject(false)}>Annuler</button>
+            <button className="btn btn-sm" style={{ background: 'var(--sia-red)', color: 'white' }} onClick={() => { onAction(order.id, 'reject'); setShowReject(false); }}>Confirmer le rejet</button>
+          </div>
+        </div>
+      )}
+
+      {/* Timeline */}
+      <div className="card" style={{ padding: '18px 24px', marginBottom: 16, overflowX: 'auto' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 14 }}>Suivi de commande</div>
+        {rejected ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--sia-red)', fontWeight: 600 }}><Icon name="alert" size={16} /> Commande rejetée</div>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: 560 }}>
+            {ORDER_STEPS_ADMIN.map((step, idx) => {
+              const done = idx <= stepIdx;
+              const active = idx === stepIdx;
+              return (
+                <div key={step.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                  {idx > 0 && <div style={{ position: 'absolute', top: 16, right: '50%', width: '100%', height: 2, background: done ? 'var(--sia-red)' : 'var(--border)', zIndex: 0 }}></div>}
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: done ? 'var(--sia-red)' : 'var(--surface-2)', border: `2px solid ${done ? 'var(--sia-red)' : 'var(--border)'}`, display: 'grid', placeItems: 'center', color: done ? 'white' : 'var(--ink-4)', zIndex: 1, boxShadow: active ? '0 0 0 4px var(--sia-red-border)' : 'none' }}>
+                    <Icon name={step.icon} size={13} />
+                  </div>
+                  <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, fontWeight: active ? 700 : 500, color: active ? 'var(--sia-red)' : done ? 'var(--ink-2)' : 'var(--ink-4)', padding: '0 4px', lineHeight: 1.3 }}>{step.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Articles */}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700 }}>Articles ({order.items})</div>
+            <table className="tbl">
+              <thead><tr><th>Article</th><th>Qté</th><th>Prix unit.</th><th>Total</th></tr></thead>
+              <tbody>
+                {products.map(p => (
+                  <tr key={p.id}>
+                    <td><div style={{ fontWeight: 600, textTransform: 'uppercase', fontSize: 12 }}>{p.name}</div><div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{p.supplier} · {p.ref}</div></td>
+                    <td className="mono tnum">×2</td>
+                    <td className="mono tnum">{p.price.toFixed(3)} DT</td>
+                    <td className="mono tnum" style={{ fontWeight: 700 }}>{(p.price * 2).toFixed(3)} DT</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ padding: '14px 20px', background: 'var(--surface-2)', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
+              <span>Total TTC</span><span className="mono tnum">{order.total.toFixed(3)} DT</span>
+            </div>
+          </div>
+
+          {/* Documents */}
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 14 }}>Documents générés</div>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'BON DE COMMANDE', value: order.bc, icon: 'file', color: 'var(--sia-red)', avail: true },
+                { label: 'BON DE LIVRAISON', value: order.bl, icon: 'truck', color: 'oklch(0.45 0.12 155)', avail: order.bl !== '—' },
+                { label: 'FACTURE', value: order.fac, icon: 'credit', color: 'oklch(0.50 0.12 60)', avail: order.fac !== '—' },
+              ].map(doc => (
+                <div key={doc.label} style={{ flex: 1, minWidth: 160, padding: '12px 14px', border: '1px solid var(--border)', borderRadius: 10, background: doc.avail ? 'var(--bg)' : 'var(--surface-2)', opacity: doc.avail ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: doc.avail ? `${doc.color}18` : 'var(--surface-3)', color: doc.avail ? doc.color : 'var(--ink-4)', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name={doc.icon} size={14} /></div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{doc.label}</div>
+                    <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{doc.value}</div>
+                  </div>
+                  {doc.avail && <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /></button>}
+                  {!doc.avail && order.stepKey === 'validated' && doc.label === 'BON DE LIVRAISON' && (
+                    <button className="btn btn-ghost btn-sm" onClick={() => onAction(order.id, 'ship')} style={{ fontSize: 10 }}>Générer</button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Client</div>
+            <div style={{ fontWeight: 700 }}>ETS Ben Djemaa & Cie</div>
+            <div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{order.client}</div>
+            <div style={{ fontSize: 12, marginTop: 8, color: 'var(--ink-2)' }}>184 commandes · 58 420 DT</div>
+            <div style={{ marginTop: 10, padding: '10px 14px', background: 'var(--surface-2)', borderRadius: 8 }}>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, marginBottom: 4 }}>MODE DE PAIEMENT</div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{order.paymentMethod}</div>
+              <div style={{ fontSize: 11, color: order.paymentConfirmed ? 'oklch(0.45 0.12 155)' : 'var(--ink-3)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Icon name={order.paymentConfirmed ? 'check' : 'clock'} size={11} />
+                {order.paymentConfirmed ? 'Paiement confirmé' : 'En attente de règlement'}
+              </div>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Livraison</div>
+            <div style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--ink-2)' }}>220 Av. des Martyrs<br />Sfax 3000 · Tunisie</div>
+          </div>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>Actions</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start' }}><Icon name="mail" size={12} /> Contacter le client</button>
+              {!rejected && <button className="btn btn-ghost btn-sm" style={{ justifyContent: 'flex-start', color: 'var(--sia-red)' }} onClick={() => setShowReject(true)}><Icon name="x" size={12} /> Rejeter la commande</button>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Catalog
+function Catalog() {
+  const [editing, setEditing] = useState(null);
+  if (editing) return <ProductEdit product={editing} onBack={() => setEditing(null)} />;
+  return (    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="Total références" value="48 120" />
+        <Kpi label="Actives" value="46 892" />
+        <Kpi label="En rupture" value="1 228" accent />
+        <Kpi label="Nouvelles ce mois" value="+342" delta={{ up: true, v: '+12 %' }} />
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+          <input className="input" placeholder="Rechercher référence, nom, OEM..." style={{ flex: 1, maxWidth: 400 }} />
+          <select className="select" style={{ width: 160 }}><option>Toutes familles</option></select>
+          <select className="select" style={{ width: 160 }}><option>Tous fournisseurs</option></select>
+          <div style={{ flex: 1 }} />
+          <button className="btn btn-ghost"><Icon name="download" size={14} /> Import CSV</button>
+          <button className="btn btn-primary"><Icon name="plus" size={14} /> Nouveau produit</button>
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Image</th><th>Référence</th><th>Produit</th><th>Famille</th><th>Prix</th><th>Stock</th><th>Statut</th><th></th></tr></thead>
+          <tbody>
+            {window.SIA_DATA.PRODUCTS.slice(0, 12).map(p => (
+              <tr key={p.id}>
+                <td><div style={{ width: 44, height: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 6, display: 'grid', placeItems: 'center', color: 'var(--ink-3)' }}><Icon name="box" size={16} /></div></td>
+                <td><div style={{ fontWeight: 700 }}>{p.supplier}</div><div className="mono" style={{ fontSize: 11, color: 'var(--ink-3)' }}>{p.ref}</div></td>
+                <td style={{ fontWeight: 500, textTransform: 'uppercase', fontSize: 12 }}>{p.name}</td>
+                <td><span className="badge badge-neutral">{p.family}</span></td>
+                <td className="mono tnum" style={{ fontWeight: 600 }}>{p.price.toFixed(3)} DT</td>
+                <td className="mono tnum">{p.stock}</td>
+                <td><span className={`badge badge-${p.status.badge}`}><span className={`dot dot-${p.status.dot}`}></span>{p.status.label}</span></td>
+                <td><button className="btn btn-ghost btn-sm" onClick={() => setEditing(p)}><Icon name="edit" size={12} /> Éditer</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ProductEdit({ product, onBack }) {
+  return (
+    <div className="admin-section">
+      <button className="btn btn-ghost btn-sm" onClick={onBack} style={{ marginBottom: 16 }}><Icon name="chevronLeft" size={14} /> Retour au catalogue</button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Éditer — {product.name}</h2>
+          <div className="mono" style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 4 }}>{product.siaRef}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost">Annuler</button>
+          <button className="btn btn-primary"><Icon name="check" size={14} /> Enregistrer</button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card" style={{ padding: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 16 }}>Informations de base</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ gridColumn: 'span 2' }}><label className="label">Nom du produit</label><input className="input" defaultValue={product.name} /></div>
+              <div><label className="label">Référence fabricant</label><input className="input mono" defaultValue={product.ref} /></div>
+              <div><label className="label">Référence SIA</label><input className="input mono" defaultValue={product.siaRef} /></div>
+              <div><label className="label">Fournisseur</label><select className="select"><option>{product.supplier}</option></select></div>
+              <div><label className="label">Famille</label><select className="select"><option>{product.family}</option></select></div>
+              <div style={{ gridColumn: 'span 2' }}><label className="label">Description</label><textarea className="input" rows="3" defaultValue={product.desc}></textarea></div>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 16 }}>Tarification</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+              <div><label className="label">Prix de base HT</label><input className="input mono" defaultValue={product.priceBase.toFixed(3)} /></div>
+              <div><label className="label">Remise standard (%)</label><input className="input mono" defaultValue={product.discount} /></div>
+              <div><label className="label">Prix après remise</label><input className="input mono" defaultValue={product.price.toFixed(3)} disabled /></div>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 16 }}>Références d'origine (OEM)</div>
+            {product.oem.map((o, i) => (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 40px', gap: 10, marginBottom: 8 }}>
+                <input className="input" defaultValue={product.oemBrands[i]} />
+                <input className="input mono" defaultValue={o} />
+                <button className="btn btn-ghost btn-sm"><Icon name="trash" size={12} /></button>
+              </div>
+            ))}
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 8 }}><Icon name="plus" size={12} /> Ajouter une OEM</button>
+          </div>
+          <div className="card" style={{ padding: 24 }}>
+            <div style={{ fontWeight: 700, marginBottom: 16 }}>Caractéristiques techniques</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              {Object.entries(product.specs).map(([k, v]) => (
+                <div key={k} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <input className="input" defaultValue={k} />
+                  <input className="input mono" defaultValue={v} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>Visibilité</div>
+            <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, borderBottom: '1px solid var(--border)', marginBottom: 10 }}><span>Publié</span><input type="checkbox" defaultChecked /></label>
+            <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, paddingBottom: 10, borderBottom: '1px solid var(--border)', marginBottom: 10 }}><span>Mis en avant</span><input type="checkbox" /></label>
+            <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}><span>Visible partenaires VIP</span><input type="checkbox" defaultChecked /></label>
+          </div>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>Image produit</div>
+            <div style={{ border: '2px dashed var(--border)', borderRadius: 10, padding: 30, textAlign: 'center', color: 'var(--ink-3)', fontSize: 12 }}>
+              <Icon name="plus" size={24} /><div style={{ marginTop: 8 }}>Cliquer ou glisser une image</div>
+            </div>
+          </div>
+          <div className="card" style={{ padding: 20 }}>
+            <div style={{ fontWeight: 700, marginBottom: 12 }}>Stock actuel</div>
+            <div className="mono tnum" style={{ fontSize: 24, fontWeight: 700 }}>{product.stock} <span style={{ fontSize: 12, color: 'var(--ink-3)' }}>unités</span></div>
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, width: '100%', justifyContent: 'center' }}>Ajuster le stock</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Inventory
+function Inventory() {
+  const moves = [
+    { date: '18 mars 10:32', type: 'Entrée', ref: 'HEL3AL002952', qty: '+120', reason: 'Réception fournisseur', user: 'Mehdi K.' },
+    { date: '18 mars 09:14', type: 'Sortie', ref: 'BLU ADS72101', qty: '−4', reason: 'Commande CV26004234', user: 'Auto' },
+    { date: '17 mars 16:08', type: 'Ajustement', ref: 'ELR342.093', qty: '−2', reason: 'Correction inventaire', user: 'Ahmed R.' },
+    { date: '17 mars 11:22', type: 'Entrée', ref: 'BOS0986', qty: '+80', reason: 'Réception fournisseur', user: 'Mehdi K.' },
+    { date: '17 mars 09:50', type: 'Sortie', ref: 'CHA RD53', qty: '−1', reason: 'Commande CV26004188', user: 'Auto' },
+  ];
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="Valeur stock" value="1,8 M DT" />
+        <Kpi label="Réf en rupture" value="42" accent />
+        <Kpi label="Sous seuil min." value="128" />
+        <Kpi label="Mouvements ce jour" value="74" />
+      </div>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 700 }}>Historique des mouvements</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /> Export</button>
+            <button className="btn btn-primary btn-sm"><Icon name="plus" size={12} /> Ajustement manuel</button>
+          </div>
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Date</th><th>Type</th><th>Référence</th><th>Quantité</th><th>Motif</th><th>Utilisateur</th></tr></thead>
+          <tbody>
+            {moves.map((m, i) => (
+              <tr key={i}>
+                <td className="mono" style={{ color: 'var(--ink-3)', fontSize: 12 }}>{m.date}</td>
+                <td><span className={`badge badge-${m.type === 'Entrée' ? 'ok' : m.type === 'Sortie' ? 'info' : 'warn'}`}>{m.type}</span></td>
+                <td className="mono" style={{ fontWeight: 600 }}>{m.ref}</td>
+                <td className="mono tnum" style={{ fontWeight: 700, color: m.qty.startsWith('+') ? 'oklch(0.45 0.12 155)' : m.qty.startsWith('−') ? 'var(--sia-red)' : 'var(--ink)' }}>{m.qty}</td>
+                <td>{m.reason}</td>
+                <td style={{ color: 'var(--ink-3)' }}>{m.user}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Clients
+function Clients() {
+  const clients = [
+    { code: 'CL0013059', name: 'ETS Ben Djemaa & Cie', city: 'Sfax', orders: 184, total: 58420, segment: 'VIP', last: 'Aujourd\'hui' },
+    { code: 'CL0011204', name: 'Garage Hédi', city: 'Sousse', orders: 92, total: 28100, segment: 'Actif', last: 'Hier' },
+    { code: 'CL0012887', name: 'Auto Plus Sfax', city: 'Sfax', orders: 156, total: 48200, segment: 'VIP', last: 'Aujourd\'hui' },
+    { code: 'CL0010442', name: 'Concess. Moez', city: 'Tunis', orders: 412, total: 180400, segment: 'Top', last: 'Aujourd\'hui' },
+    { code: 'CL0013102', name: 'Méca Services', city: 'Gabès', orders: 3, total: 890, segment: 'Nouveau', last: 'Il y a 3 j' },
+    { code: 'CL0009887', name: 'Garage Aziz', city: 'Sfax', orders: 28, total: 8420, segment: 'Inactif', last: 'Il y a 62 j' },
+  ];
+  const segColors = { VIP: 'danger', Top: 'warn', Actif: 'ok', Nouveau: 'info', Inactif: 'neutral' };
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="Total clients" value="1 248" />
+        <Kpi label="VIP" value="48" accent />
+        <Kpi label="Actifs 30j" value="684" />
+        <Kpi label="Nouveaux" value="+22" delta={{ up: true, v: 'ce mois' }} />
+        <Kpi label="Inactifs 90j" value="120" />
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+          <input className="input" placeholder="Rechercher..." style={{ flex: 1, maxWidth: 320 }} />
+          <select className="select" style={{ width: 140 }}><option>Tous segments</option></select>
+          <select className="select" style={{ width: 140 }}><option>Toutes villes</option></select>
+        </div>
+        <table className="tbl">
+          <thead><tr><th>Code</th><th>Raison sociale</th><th>Ville</th><th>Commandes</th><th>Total</th><th>Segment</th><th>Dernière activité</th><th></th></tr></thead>
+          <tbody>
+            {clients.map(c => (
+              <tr key={c.code}>
+                <td className="mono" style={{ fontWeight: 600 }}>{c.code}</td>
+                <td style={{ fontWeight: 500 }}>{c.name}</td>
+                <td>{c.city}</td>
+                <td className="mono tnum">{c.orders}</td>
+                <td className="mono tnum" style={{ fontWeight: 700 }}>{c.total.toLocaleString('fr-FR')} DT</td>
+                <td><span className={`badge badge-${segColors[c.segment]}`}>{c.segment}</span></td>
+                <td style={{ color: 'var(--ink-3)', fontSize: 12 }}>{c.last}</td>
+                <td><button className="btn btn-ghost btn-sm">Fiche <Icon name="arrowRight" size={12} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// Promotions
+function Promotions() {
+  const PROMOTIONS = (window.SIA_DATA && window.SIA_DATA.PROMOTIONS) || [];
+  const PRODUCTS = (window.SIA_DATA && window.SIA_DATA.PRODUCTS) || [];
+  const FAMILIES = (window.SIA_DATA && window.SIA_DATA.FAMILIES) || [];
+  const [promos, setPromos] = React.useState(PROMOTIONS);
+  const [showForm, setShowForm] = React.useState(false);
+  const [form, setForm] = React.useState({ label: '', type: 'client', target: '', value: 10, unit: '%', active: true });
+  const clients = [
+    { code: 'CL0013059', name: 'ETS Ben Djemaa & Cie' },
+    { code: 'CL0009812', name: 'Garage Hédi Sfax' },
+    { code: 'CL0011240', name: 'Auto Plus Tunis' },
+    { code: 'CL0010547', name: 'Méca Services Sousse' },
+  ];
+
+  const toggleActive = (id) => setPromos(prev => prev.map(p => p.id === id ? { ...p, active: !p.active } : p));
+
+  const addPromo = () => {
+    const newPromo = { ...form, id: `promo${Date.now()}`, scope: form.type === 'client' ? `Client ${form.target}` : `Famille ${form.target}` };
+    setPromos(prev => [newPromo, ...prev]);
+    setShowForm(false);
+    setForm({ label: '', type: 'client', target: '', value: 10, unit: '%', active: true });
+  };
+
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="Promotions actives" value={promos.filter(p => p.active).length} />
+        <Kpi label="Par client/partenaire" value={promos.filter(p => p.type === 'client').length} accent />
+        <Kpi label="Par famille article" value={promos.filter(p => p.type === 'family').length} />
+        <Kpi label="Désactivées" value={promos.filter(p => !p.active).length} />
+      </div>
+
+      {/* New promo form */}
+      {showForm && (
+        <div className="card" style={{ padding: 24, marginBottom: 16, border: '1px solid var(--sia-red-border)', background: 'var(--sia-red-soft)' }}>
+          <div style={{ fontWeight: 700, marginBottom: 16, color: 'oklch(0.38 0.18 25)' }}>Nouvelle promotion</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 14 }}>
+            <div style={{ gridColumn: 'span 2' }}>
+              <label className="label">Libellé</label>
+              <input className="input" placeholder="Ex : Remise été freinage" value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Valeur</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input className="input mono" type="number" value={form.value} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))} style={{ flex: 1 }} />
+                <select className="select" value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} style={{ width: 70 }}>
+                  <option value="%">%</option>
+                  <option value="DT">DT</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+            <div>
+              <label className="label">Type d'attribution</label>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {[['client', 'Client / Partenaire'], ['family', 'Famille d\'articles']].map(([val, lbl]) => (
+                  <button key={val} onClick={() => setForm(f => ({ ...f, type: val, target: '' }))}
+                    className="btn btn-sm" style={{ flex: 1, background: form.type === val ? 'var(--ink)' : 'var(--surface)', color: form.type === val ? 'white' : 'var(--ink-2)', border: '1px solid var(--border)' }}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="label">{form.type === 'client' ? 'Client ciblé' : 'Famille ciblée'}</label>
+              {form.type === 'client' ? (
+                <select className="select" value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value }))}>
+                  <option value="">— Tous les clients —</option>
+                  {clients.map(c => <option key={c.code} value={c.code}>{c.name} ({c.code})</option>)}
+                </select>
+              ) : (
+                <select className="select" value={form.target} onChange={e => setForm(f => ({ ...f, target: e.target.value }))}>
+                  <option value="">— Tous les articles —</option>
+                  {FAMILIES.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost" onClick={() => setShowForm(false)}>Annuler</button>
+            <button className="btn btn-primary" onClick={addPromo} disabled={!form.label}><Icon name="check" size={14} /> Créer la promotion</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 700 }}>Toutes les promotions</div>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowForm(true)}><Icon name="plus" size={12} /> Nouvelle promotion</button>
+        </div>
+        <table className="tbl">
+          <thead>
+            <tr><th>Libellé</th><th>Type</th><th>Cible</th><th>Remise</th><th>Portée</th><th>Statut</th><th></th></tr>
+          </thead>
+          <tbody>
+            {promos.map(p => (
+              <tr key={p.id}>
+                <td style={{ fontWeight: 600 }}>{p.label}</td>
+                <td>
+                  <span className={`badge badge-${p.type === 'client' ? 'info' : 'warn'}`}>
+                    <span className={`dot dot-${p.type === 'client' ? 'info' : 'warn'}`}></span>
+                    {p.type === 'client' ? 'Client' : 'Famille article'}
+                  </span>
+                </td>
+                <td className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{p.target || '— Tous —'}</td>
+                <td className="mono tnum" style={{ fontWeight: 700, color: 'var(--sia-red)', fontSize: 15 }}>−{p.value}{p.unit}</td>
+                <td style={{ fontSize: 12, color: 'var(--ink-3)' }}>{p.scope}</td>
+                <td>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <div onClick={() => toggleActive(p.id)} style={{ width: 36, height: 20, borderRadius: 10, background: p.active ? 'var(--sia-red)' : 'var(--border)', position: 'relative', transition: 'background 0.2s', cursor: 'pointer' }}>
+                      <div style={{ position: 'absolute', top: 2, left: p.active ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}></div>
+                    </div>
+                    <span style={{ fontSize: 12, color: p.active ? 'oklch(0.45 0.12 155)' : 'var(--ink-4)', fontWeight: 600 }}>{p.active ? 'Active' : 'Inactive'}</span>
+                  </label>
+                </td>
+                <td><button className="btn btn-ghost btn-sm"><Icon name="edit" size={12} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// CONTENT MANAGER — Gestionnaire rubriques Home
+// ═══════════════════════════════════════════════
+function ContentManager() {
+  const DEFAULT_SECTIONS = [
+    { id: 'hero',       label: 'Bannière héro',          active: true,  icon: 'sparkle', desc: 'Titre, CTA, image fond' },
+    { id: 'promo',      label: 'Bandeau promotion',       active: false, icon: 'percent', desc: 'Message flash + date expiration' },
+    { id: 'featured',   label: 'Produits mis en avant',   active: false, icon: 'star',    desc: 'Sélection manuelle de références' },
+    { id: 'suppliers',  label: 'Carousel fournisseurs',   active: true,  icon: 'layers',  desc: 'Logos fournisseurs défilants' },
+    { id: 'brands',     label: 'Carousel marques auto',   active: true,  icon: 'car',     desc: 'Marques automobiles défilantes' },
+    { id: 'categories', label: 'Raccourcis catalogue',    active: true,  icon: 'box',     desc: 'Familles les plus demandées' },
+    { id: 'stats',      label: 'Statistiques vitrines',   active: true,  icon: 'chart',   desc: 'Réf, délai, remise partenaire' },
+    { id: 'announce',   label: 'Annonce texte libre',     active: false, icon: 'bell',    desc: 'Bloc info urgent, fermeture…' },
+  ];
+
+  const [sections, setSections] = React.useState(DEFAULT_SECTIONS);
+  const [editing, setEditing] = React.useState(null);
+  const [heroForm, setHeroForm] = React.useState({
+    title: 'Vos pièces détachées auto, neuves & d\'origine, livrées en 24 h.',
+    subtitle: 'Plus de 48 000 références disponibles. Remises partenaires appliquées automatiquement.',
+    ctaLabel: 'Commencer une recherche', ctaUrl: 'Search.html',
+    ctaSecLabel: 'Mes commandes en cours', ctaSecUrl: 'Account.html?tab=orders',
+  });
+  const [promoForm, setPromoForm] = React.useState({ message: '', color: '#C8102E', expiry: '' });
+  const [announceForm, setAnnounceForm] = React.useState({ text: '', type: 'info' });
+
+  const toggle = (id) => setSections(s => s.map(sec => sec.id === id ? { ...sec, active: !sec.active } : sec));
+  const move = (id, dir) => {
+    const idx = sections.findIndex(s => s.id === id);
+    const next = [...sections];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= next.length) return;
+    [next[idx], next[swap]] = [next[swap], next[idx]];
+    setSections(next);
+  };
+
+  return (
+    <div className="admin-section">
+      <div className="aph" style={{ marginBottom: 20 }}>
+        <div><h2 className="aph" style={{ margin: 0, fontSize: 20, fontWeight: 700 }}>Gestionnaire — Page d'accueil</h2>
+          <div className="sub">Activez, réordonnez et configurez les blocs visibles par les clients</div>
+        </div>
+        <button className="btn btn-primary btn-sm"><Icon name="check" size={12} /> Publier les modifications</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: 20 }}>
+        {/* Left: section list */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '12px 20px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center' }}>
+            <span>Rubrique</span><span>Ordre</span><span>Statut</span><span>Config</span>
+          </div>
+          {sections.map((sec, idx) => (
+            <div key={sec.id} style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 12, alignItems: 'center', background: editing === sec.id ? 'var(--sia-red-soft)' : 'var(--surface)', transition: 'background 0.15s' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: sec.active ? 'var(--sia-red-soft)' : 'var(--surface-2)', color: sec.active ? 'var(--sia-red)' : 'var(--ink-4)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+                  <Icon name={sec.icon} size={16} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{sec.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 1 }}>{sec.desc}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <button onClick={() => move(sec.id, -1)} disabled={idx === 0} className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', opacity: idx === 0 ? 0.3 : 1 }}><Icon name="arrowUp" size={11} /></button>
+                <button onClick={() => move(sec.id, 1)} disabled={idx === sections.length - 1} className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', opacity: idx === sections.length - 1 ? 0.3 : 1 }}><Icon name="arrowDown" size={11} /></button>
+              </div>
+              <div onClick={() => toggle(sec.id)} style={{ width: 40, height: 22, borderRadius: 11, background: sec.active ? 'var(--sia-red)' : 'var(--border)', position: 'relative', cursor: 'pointer', transition: 'background 0.2s' }}>
+                <div style={{ position: 'absolute', top: 3, left: sec.active ? 21 : 3, width: 16, height: 16, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}></div>
+              </div>
+              {['hero','promo','announce'].includes(sec.id) ? (
+                <button onClick={() => setEditing(editing === sec.id ? null : sec.id)} className="btn btn-ghost btn-sm"><Icon name="edit" size={12} /></button>
+              ) : <div></div>}
+            </div>
+          ))}
+        </div>
+
+        {/* Right: live config panel */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Hero editor */}
+          {editing === 'hero' && (
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontWeight: 700, marginBottom: 14, color: 'oklch(0.38 0.18 25)', display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="sparkle" size={14} /> Bannière héro</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div><label className="label">Titre principal</label><textarea className="input" rows={2} value={heroForm.title} onChange={e => setHeroForm(f => ({ ...f, title: e.target.value }))}></textarea></div>
+                <div><label className="label">Sous-titre</label><textarea className="input" rows={2} value={heroForm.subtitle} onChange={e => setHeroForm(f => ({ ...f, subtitle: e.target.value }))}></textarea></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div><label className="label">Bouton principal</label><input className="input" value={heroForm.ctaLabel} onChange={e => setHeroForm(f => ({ ...f, ctaLabel: e.target.value }))} /></div>
+                  <div><label className="label">URL</label><input className="input mono" value={heroForm.ctaUrl} onChange={e => setHeroForm(f => ({ ...f, ctaUrl: e.target.value }))} /></div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div><label className="label">Bouton secondaire</label><input className="input" value={heroForm.ctaSecLabel} onChange={e => setHeroForm(f => ({ ...f, ctaSecLabel: e.target.value }))} /></div>
+                  <div><label className="label">URL</label><input className="input mono" value={heroForm.ctaSecUrl} onChange={e => setHeroForm(f => ({ ...f, ctaSecUrl: e.target.value }))} /></div>
+                </div>
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end' }}><Icon name="check" size={12} /> Appliquer</button>
+              </div>
+            </div>
+          )}
+          {editing === 'promo' && (
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontWeight: 700, marginBottom: 14, color: 'oklch(0.38 0.18 25)', display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="percent" size={14} /> Bandeau promotion</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div><label className="label">Message</label><input className="input" placeholder="Ex : SOLDES ÉTÉ — −20% sur la filtration jusqu'au 30 juin" value={promoForm.message} onChange={e => setPromoForm(f => ({ ...f, message: e.target.value }))} /></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div><label className="label">Couleur fond</label><input type="color" className="input" value={promoForm.color} onChange={e => setPromoForm(f => ({ ...f, color: e.target.value }))} style={{ height: 40, padding: 4 }} /></div>
+                  <div><label className="label">Date d'expiration</label><input type="date" className="input" value={promoForm.expiry} onChange={e => setPromoForm(f => ({ ...f, expiry: e.target.value }))} /></div>
+                </div>
+                {promoForm.message && (
+                  <div style={{ background: promoForm.color, color: 'white', padding: '10px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, textAlign: 'center' }}>
+                    {promoForm.message}
+                  </div>
+                )}
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end' }}><Icon name="check" size={12} /> Appliquer</button>
+              </div>
+            </div>
+          )}
+          {editing === 'announce' && (
+            <div className="card" style={{ padding: 20 }}>
+              <div style={{ fontWeight: 700, marginBottom: 14, color: 'oklch(0.38 0.18 25)', display: 'flex', alignItems: 'center', gap: 8 }}><Icon name="bell" size={14} /> Annonce texte libre</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div><label className="label">Type</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[['info','Information'],['warn','Avertissement'],['danger','Urgent']].map(([v,l]) => (
+                      <button key={v} onClick={() => setAnnounceForm(f => ({ ...f, type: v }))} className="btn btn-sm"
+                        style={{ flex: 1, background: announceForm.type === v ? 'var(--ink)' : 'var(--surface)', color: announceForm.type === v ? 'white' : 'var(--ink-2)', border: '1px solid var(--border)' }}>{l}</button>
+                    ))}
+                  </div>
+                </div>
+                <div><label className="label">Message</label><textarea className="input" rows={3} placeholder="Ex : Fermeture exceptionnelle le 1er mai. Reprise le 2 mai." value={announceForm.text} onChange={e => setAnnounceForm(f => ({ ...f, text: e.target.value }))}></textarea></div>
+                <button className="btn btn-primary btn-sm" style={{ alignSelf: 'flex-end' }}><Icon name="check" size={12} /> Appliquer</button>
+              </div>
+            </div>
+          )}
+          {/* Preview card */}
+          <div className="card" style={{ padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--ink-3)', marginBottom: 12 }}>Aperçu — ordre actuel</div>
+            {sections.map((s, i) => (
+              <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', marginBottom: 4, borderRadius: 8, background: s.active ? 'var(--surface-2)' : 'transparent', opacity: s.active ? 1 : 0.35 }}>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-4)', width: 18 }}>{i + 1}</span>
+                <Icon name={s.icon} size={12} style={{ color: s.active ? 'var(--sia-red)' : 'var(--ink-4)' }} />
+                <span style={{ fontSize: 12, fontWeight: s.active ? 600 : 400, color: s.active ? 'var(--ink)' : 'var(--ink-4)' }}>{s.label}</span>
+                {!s.active && <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--ink-4)' }}>masqué</span>}
+              </div>
+            ))}
+            <a href="Home.html" target="_blank" className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}>
+              <Icon name="externalLink" size={11} /> Voir la page d'accueil
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════
+// PERMISSIONS MANAGER — Rôles & accès
+// ═══════════════════════════════════════════════
+const ALL_PERMISSIONS = {
+  'Commandes': [
+    { key: 'orders.view',            label: 'Voir toutes les commandes' },
+    { key: 'orders.validate',        label: 'Valider / rejeter une commande' },
+    { key: 'orders.generate_bl',     label: 'Générer bon de livraison' },
+    { key: 'orders.generate_invoice',label: 'Générer facture' },
+    { key: 'orders.confirm_payment', label: 'Confirmer paiement reçu' },
+    { key: 'orders.cancel',          label: 'Annuler une commande' },
+    { key: 'orders.confirm_yme_sync',label: 'Confirmer la saisie manuelle d\'une commande dans YME' },
+  ],
+  'Catalogue': [
+    { key: 'catalog.view',   label: 'Consulter le catalogue' },
+    { key: 'catalog.edit',   label: 'Modifier prix, descriptions, stock' },
+    { key: 'catalog.create', label: 'Ajouter de nouvelles références' },
+    { key: 'catalog.delete', label: 'Supprimer des références' },
+    { key: 'catalog.import', label: 'Import / export CSV' },
+  ],
+  'Clients': [
+    { key: 'clients.view',            label: 'Voir la liste clients' },
+    { key: 'clients.edit',            label: 'Modifier un compte client' },
+    { key: 'clients.create',          label: 'Créer un nouveau partenaire' },
+    { key: 'clients.view_financial',  label: 'Voir historique commandes & règlements' },
+    { key: 'clients.set_discount',    label: 'Attribuer une remise personnalisée' },
+  ],
+  'Promotions': [
+    { key: 'promos.view',          label: 'Voir les promotions' },
+    { key: 'promos.create',        label: 'Créer une promotion' },
+    { key: 'promos.edit',          label: 'Modifier / activer / désactiver' },
+    { key: 'promos.assign_client', label: 'Assigner à un client spécifique' },
+    { key: 'promos.assign_family', label: 'Assigner à une famille d\'articles' },
+  ],
+  'Stock / Inventaire': [
+    { key: 'inventory.view',           label: 'Voir les niveaux de stock' },
+    { key: 'inventory.adjust',         label: 'Ajustement manuel de stock' },
+    { key: 'inventory.view_movements', label: 'Voir l\'historique des mouvements' },
+    { key: 'inventory.set_thresholds', label: 'Définir seuils de réapprovisionnement' },
+  ],
+  'Contenu / Home': [
+    { key: 'content.view',    label: 'Voir le gestionnaire de contenu' },
+    { key: 'content.edit',    label: 'Modifier les rubriques Home' },
+    { key: 'content.reorder', label: 'Réordonner les blocs' },
+    { key: 'content.publish', label: 'Publier / dépublier une section' },
+  ],
+  'Analytique': [
+    { key: 'analytics.view',   label: 'Voir les rapports de vente' },
+    { key: 'analytics.export', label: 'Exporter les données' },
+  ],
+  'Expédition': [
+    { key: 'shipping.view', label: 'Voir zones et tarifs' },
+    { key: 'shipping.edit', label: 'Modifier zones, transporteurs' },
+  ],
+  'Paramètres & Utilisateurs': [
+    { key: 'settings.view',        label: 'Voir les paramètres' },
+    { key: 'settings.edit',        label: 'Modifier la configuration plateforme' },
+    { key: 'users.view',           label: 'Voir les comptes admin' },
+    { key: 'users.create',         label: 'Inviter un nouvel admin' },
+    { key: 'users.assign_roles',   label: 'Attribuer des rôles et permissions' },
+    { key: 'users.delete',         label: 'Supprimer un compte admin' },
+  ],
+};
+
+const ALL_PERM_KEYS = Object.values(ALL_PERMISSIONS).flat().map(p => p.key);
+
+const DEFAULT_ROLES = [
+  { id: 'superadmin', label: 'Super Admin',           color: '#C8102E', permissions: ALL_PERM_KEYS },
+  { id: 'orders_mgr', label: 'Gestionnaire commandes',color: '#003DA5', permissions: ['orders.view','orders.validate','orders.generate_bl','orders.generate_invoice','orders.confirm_payment','orders.cancel','orders.confirm_yme_sync','clients.view'] },
+  { id: 'stock_mgr',  label: 'Responsable stock',     color: '#009640', permissions: ['inventory.view','inventory.adjust','inventory.view_movements','inventory.set_thresholds','catalog.view'] },
+  { id: 'commercial', label: 'Commercial',             color: '#F7C300', permissions: ['clients.view','clients.edit','clients.create','clients.view_financial','clients.set_discount','orders.confirm_yme_sync','promos.view','promos.create','promos.edit','promos.assign_client','promos.assign_family','analytics.view'] },
+  { id: 'editor',     label: 'Éditeur contenu',       color: '#009FE3', permissions: ['content.view','content.edit','content.reorder','content.publish'] },
+];
+
+const TEAM_MEMBERS = [
+  { name: 'Mehdi Karim',    email: 'mehdi@sia.tn',  initials: 'MK', roleId: 'superadmin' },
+  { name: 'Ahmed Riahi',    email: 'ahmed@sia.tn',  initials: 'AR', roleId: 'stock_mgr' },
+  { name: 'Leila Ben Salem',email: 'leila@sia.tn',  initials: 'LB', roleId: 'orders_mgr' },
+  { name: 'Sami Trabelsi',  email: 'sami@sia.tn',   initials: 'ST', roleId: 'commercial' },
+];
+
+function PermissionsManager() {
+  const [roles, setRoles] = React.useState(DEFAULT_ROLES);
+  const [team, setTeam] = React.useState(TEAM_MEMBERS);
+  const [selectedRole, setSelectedRole] = React.useState('superadmin');
+  const [tab, setTab] = React.useState('roles'); // 'roles' | 'team'
+  const [showNewRole, setShowNewRole] = React.useState(false);
+  const [newRoleLabel, setNewRoleLabel] = React.useState('');
+  const [newRoleColor, setNewRoleColor] = React.useState('#1A1A1A');
+
+  const role = roles.find(r => r.id === selectedRole);
+  const hasPerm = (key) => role ? role.permissions.includes(key) : false;
+
+  const togglePerm = (key) => {
+    setRoles(prev => prev.map(r => r.id !== selectedRole ? r : {
+      ...r,
+      permissions: r.permissions.includes(key)
+        ? r.permissions.filter(p => p !== key)
+        : [...r.permissions, key],
+    }));
+  };
+
+  const toggleGroup = (groupKeys) => {
+    const allOn = groupKeys.every(k => hasPerm(k));
+    setRoles(prev => prev.map(r => r.id !== selectedRole ? r : {
+      ...r,
+      permissions: allOn
+        ? r.permissions.filter(p => !groupKeys.includes(p))
+        : [...new Set([...r.permissions, ...groupKeys])],
+    }));
+  };
+
+  const addRole = () => {
+    if (!newRoleLabel.trim()) return;
+    const id = newRoleLabel.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z_]/g, '');
+    setRoles(prev => [...prev, { id, label: newRoleLabel, color: newRoleColor, permissions: [] }]);
+    setSelectedRole(id);
+    setShowNewRole(false);
+    setNewRoleLabel('');
+  };
+
+  return (
+    <div className="admin-section">
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, width: 'fit-content' }}>
+        {[['roles','Rôles & permissions'],['team','Équipe admin']].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)} className="btn btn-sm"
+            style={{ background: tab === k ? 'var(--ink)' : 'transparent', color: tab === k ? 'white' : 'var(--ink-2)', border: 'none', padding: '6px 16px' }}>{l}</button>
+        ))}
+      </div>
+
+      {tab === 'roles' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 20, alignItems: 'start' }}>
+          {/* Role list */}
+          <div className="card" style={{ overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              Rôles <button className="btn btn-ghost btn-sm" onClick={() => setShowNewRole(true)}><Icon name="plus" size={12} /></button>
+            </div>
+            {showNewRole && (
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--sia-red-soft)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <input className="input" placeholder="Nom du rôle" value={newRoleLabel} onChange={e => setNewRoleLabel(e.target.value)} style={{ fontSize: 13 }} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="color" className="input" value={newRoleColor} onChange={e => setNewRoleColor(e.target.value)} style={{ width: 40, height: 36, padding: 3 }} />
+                  <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={addRole}>Créer</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setShowNewRole(false)}><Icon name="x" size={12} /></button>
+                </div>
+              </div>
+            )}
+            {roles.map(r => (
+              <button key={r.id} onClick={() => setSelectedRole(r.id)}
+                style={{ width: '100%', padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, background: selectedRole === r.id ? 'var(--sia-red-soft)' : 'var(--surface)', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: r.color, flexShrink: 0 }}></div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: selectedRole === r.id ? 'oklch(0.38 0.18 25)' : 'var(--ink)' }}>{r.label}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>{r.permissions.length} permissions</div>
+                </div>
+                {r.id === 'superadmin' && <Icon name="lock" size={11} style={{ color: 'var(--ink-4)' }} />}
+              </button>
+            ))}
+          </div>
+
+          {/* Permission matrix */}
+          {role && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: role.color }}></div>
+                <div style={{ fontWeight: 700, fontSize: 16 }}>{role.label}</div>
+                <span className="mono" style={{ fontSize: 11, color: 'var(--ink-3)', marginLeft: 4 }}>{role.permissions.length} / {ALL_PERM_KEYS.length} permissions</span>
+              </div>
+              {Object.entries(ALL_PERMISSIONS).map(([group, perms]) => {
+                const groupKeys = perms.map(p => p.key);
+                const allOn = groupKeys.every(k => hasPerm(k));
+                const someOn = groupKeys.some(k => hasPerm(k));
+                return (
+                  <div key={group} className="card" style={{ overflow: 'hidden' }}>
+                    <div style={{ padding: '10px 16px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{group}</div>
+                      <button onClick={() => toggleGroup(groupKeys)} className="btn btn-ghost btn-sm" style={{ fontSize: 11 }}>
+                        {allOn ? 'Tout désactiver' : 'Tout activer'}
+                      </button>
+                    </div>
+                    {perms.map(perm => (
+                      <label key={perm.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: role.id === 'superadmin' ? 'not-allowed' : 'pointer', opacity: role.id === 'superadmin' ? 0.8 : 1, background: hasPerm(perm.key) ? 'oklch(0.97 0.01 155)' : 'var(--surface)' }}>
+                        <input type="checkbox" checked={hasPerm(perm.key)} disabled={role.id === 'superadmin'} onChange={() => togglePerm(perm.key)} style={{ accentColor: 'var(--sia-red)', width: 15, height: 15, flexShrink: 0 }} />
+                        <span style={{ fontSize: 13 }}>{perm.label}</span>
+                        <code style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', background: 'var(--surface-2)', padding: '2px 6px', borderRadius: 4 }}>{perm.key}</code>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'team' && (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 700 }}>Membres de l'équipe</div>
+            <button className="btn btn-primary btn-sm"><Icon name="plus" size={12} /> Inviter un membre</button>
+          </div>
+          <table className="tbl">
+            <thead><tr><th>Membre</th><th>Email</th><th>Rôle</th><th>Permissions</th><th></th></tr></thead>
+            <tbody>
+              {team.map((m, i) => {
+                const memberRole = roles.find(r => r.id === m.roleId);
+                return (
+                  <tr key={i}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: memberRole?.color || 'var(--ink)', color: 'white', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>{m.initials}</div>
+                        <span style={{ fontWeight: 600 }}>{m.name}</span>
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--ink-3)', fontSize: 12 }} className="mono">{m.email}</td>
+                    <td>
+                      <select className="select" style={{ fontSize: 12 }} value={m.roleId}
+                        onChange={e => setTeam(prev => prev.map((mb, j) => j === i ? { ...mb, roleId: e.target.value } : mb))}>
+                        {roles.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                      </select>
+                    </td>
+                    <td className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{memberRole ? `${memberRole.permissions.length} permissions` : '—'}</td>
+                    <td>
+                      {m.roleId !== 'superadmin' && (
+                        <button className="btn btn-ghost btn-sm" style={{ color: 'var(--sia-red)' }} onClick={() => setTeam(prev => prev.filter((_, j) => j !== i))}>
+                          <Icon name="trash" size={12} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Analytics() {
+  const data = [42, 38, 51, 46, 55, 49, 62, 58, 68, 72, 65, 78];
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="CA 12 derniers mois" value="5,84 M DT" delta={{ up: true, v: '+22 %' }} />
+        <Kpi label="Taux de conversion" value="3,8 %" delta={{ up: true, v: '+0,4 pt' }} />
+        <Kpi label="Abandon panier" value="18 %" delta={{ up: false, v: '−2 pt' }} />
+        <Kpi label="Taux de retour" value="1,2 %" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="card" style={{ padding: 20 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Revenus mensuels</div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 }}>Tendance sur 12 mois (K DT)</div>
+          <LineChart data={data} />
+        </div>
+        <div className="card" style={{ padding: 20 }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Écart consultations vs ventes</div>
+          <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 14 }}>Top 5 — problèmes de conversion détectés</div>
+          {[
+            { name: 'ELRING Joint culasse 342.093', views: 420, sales: 12 },
+            { name: 'TRW Plaquettes GDB1515', views: 380, sales: 22 },
+            { name: 'BOSCH Alternateur 0986', views: 340, sales: 8 },
+            { name: 'CHAMPION Balai RD53', views: 290, sales: 18 },
+            { name: 'HELLA Phare 1LB088', views: 250, sales: 4 },
+          ].map((p, i) => {
+            const rate = (p.sales / p.views * 100).toFixed(1);
+            return (
+              <div key={i} style={{ marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+                  <span style={{ fontWeight: 500 }}>{p.name}</span>
+                  <span className="mono" style={{ color: 'var(--ink-3)' }}>{p.views} vues · {p.sales} ventes ({rate} %)</span>
+                </div>
+                <div className="progress"><div style={{ width: `${rate * 4}%`, background: rate < 5 ? 'var(--sia-red)' : 'var(--ok)' }}></div></div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Supervision intégration — santé du bus d'événements ERP (YME)
+function IntegrationHealth() {
+  const ORDERS = (window.SIA_DATA && window.SIA_DATA.ORDERS) || [];
+  const pendingSync = ORDERS.filter(o => !(o.stepKey === 'paid')).length;
+  const events = [
+    { t: '18 mars 14:32', label: 'stock.updated — HEL3AL002952', detail: 'Δ -4 unités · connecteur CDC YME', status: 'ok' },
+    { t: '18 mars 14:20', label: 'stock.updated — REN7BL001120', detail: 'Δ +120 unités · réception fournisseur', status: 'ok' },
+    { t: '18 mars 13:58', label: 'order.pending_manual_entry — CV26004234', detail: 'En attente de saisie manuelle dans YME', status: 'warn' },
+    { t: '18 mars 13:41', label: 'stock.updated — CIT2FL000871', detail: 'Δ -1 unité', status: 'ok' },
+    { t: '18 mars 12:05', label: 'bus.reconnect', detail: 'Reprise après coupure réseau SIA (12s)', status: 'warn' },
+  ];
+  const components = [
+    { name: 'Connecteur CDC (réseau SIA)', desc: 'Capture les changements de stock YME', status: 'ok' },
+    { name: 'Bus d\'événements', desc: 'File stock.updated / order.*', status: 'ok' },
+    { name: 'Consommateur plateforme', desc: 'Applique les deltas de stock', status: 'ok' },
+    { name: 'Connexion entrante vers YME', desc: 'Volontairement absente — isolation ERP', status: 'na' },
+  ];
+  const compColor = { ok: 'ok', warn: 'warn', na: 'neutral' };
+  const compLabel = { ok: 'Opérationnel', warn: 'Dégradé', na: 'Non applicable' };
+  return (
+    <div className="admin-section">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
+        <Kpi label="Latence sync stock (p95)" value="1,8 s" sub="cible < 5 s" />
+        <Kpi label="Événements / 24h" value="3 214" />
+        <Kpi label="Commandes non saisies en YME" value={pendingSync} sub="saisie manuelle requise" accent />
+        <Kpi label="Composants opérationnels" value="3/4" sub="isolation ERP intacte" />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16 }}>
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>Journal des événements</div>
+          {events.map((e, i) => (
+            <div key={i} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+              <Icon name={e.status === 'ok' ? 'check' : 'alert'} size={14} style={{ color: e.status === 'ok' ? 'oklch(0.45 0.12 155)' : 'var(--sia-red)', marginTop: 2, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 600 }}>{e.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{e.detail}</div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-4)', whiteSpace: 'nowrap' }}>{e.t}</div>
+            </div>
+          ))}
+        </div>
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>État des composants</div>
+          {components.map((c, i) => (
+            <div key={i} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{c.name}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{c.desc}</div>
+              </div>
+              <span className={`badge badge-${compColor[c.status]}`}><span className={`dot dot-${compColor[c.status]}`}></span>{compLabel[c.status]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Shipping() {
+  return (
+    <div className="admin-section">
+      <div className="card" style={{ padding: 24, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 14 }}>Zones de livraison</div>
+        <table className="tbl">
+          <thead><tr><th>Zone</th><th>Régions</th><th>Tarif standard</th><th>Tarif express</th><th>Gratuit dès</th><th></th></tr></thead>
+          <tbody>
+            {[
+              ['Grand Sfax', 'Sfax, Mahdia, Gabès', 'Gratuit', '25,000 DT', '—', ''],
+              ['Nord', 'Tunis, Bizerte, Nabeul', '18,000 DT', '45,000 DT', '500 DT', ''],
+              ['Centre', 'Sousse, Monastir, Kairouan', '12,000 DT', '35,000 DT', '300 DT', ''],
+              ['Sud', 'Gabès, Médenine, Tataouine', '22,000 DT', '55,000 DT', '600 DT', ''],
+            ].map((r, i) => (
+              <tr key={i}>
+                {r.map((c, j) => j < 5 ? <td key={j} className={j === 2 || j === 3 || j === 4 ? 'mono tnum' : ''} style={{ fontWeight: j === 0 ? 700 : 400 }}>{c}</td> : null)}
+                <td><button className="btn btn-ghost btn-sm"><Icon name="edit" size={12} /></button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 14 }}>Transporteurs intégrés</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+          {['Aramex Tunisie', 'First Delivery', 'SIA Logistique (flotte propre)'].map((t, i) => (
+            <div key={t} className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ fontWeight: 700 }}>{t}</div>
+                <span className="badge badge-ok"><span className="dot dot-ok"></span>Actif</span>
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>API connectée · Étiquettes auto · Tracking temps réel</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Settings() {
+  return (
+    <div className="admin-section" style={{ maxWidth: 800 }}>
+      <div className="card" style={{ padding: 24, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, marginBottom: 16 }}>Informations de l'entreprise</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div><label className="label">Raison sociale</label><input className="input" defaultValue="Sfaxienne Industrielle Automobile" /></div>
+          <div><label className="label">Matricule fiscal</label><input className="input mono" defaultValue="0123456/A/P/M/000" /></div>
+          <div><label className="label">Téléphone</label><input className="input mono" defaultValue="+216 74 200 300" /></div>
+          <div><label className="label">Email support</label><input className="input" defaultValue="support@sia.tn" /></div>
+          <div style={{ gridColumn: 'span 2' }}><label className="label">Adresse</label><input className="input" defaultValue="Route de Tunis, Km 8, Sfax 3002" /></div>
+        </div>
+      </div>
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 16 }}>Équipe admin</div>
+        {[
+          { n: 'Mehdi Karim', r: 'Super admin', e: 'mehdi@sia.tn' },
+          { n: 'Ahmed Riahi', r: 'Gestion stock', e: 'ahmed@sia.tn' },
+          { n: 'Leila Ben Salem', r: 'Service client', e: 'leila@sia.tn' },
+        ].map((u, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+            <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--ink)', color: 'white', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700 }}>{u.n.split(' ').map(w => w[0]).join('')}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600 }}>{u.n}</div>
+              <div style={{ fontSize: 12, color: 'var(--ink-3)' }}>{u.e}</div>
+            </div>
+            <span className="badge badge-neutral">{u.r}</span>
+            <button className="btn btn-ghost btn-sm"><Icon name="edit" size={12} /></button>
+          </div>
+        ))}
+        <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }}><Icon name="plus" size={12} /> Inviter un membre</button>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [section, setSection] = useState(() => {
+    const p = new URLSearchParams(window.location.search).get('s');
+    return p || 'dashboard';
+  });
+  const titles = {
+    dashboard: ['Tableau de bord', 'Vue d\'ensemble de votre activité B2B'],
+    orders: ['Gestion des commandes', 'Toutes les commandes partenaires'],
+    catalog: ['Catalogue produits', 'Gérez vos 48 120 références'],
+    inventory: ['Inventaire', 'Stock, seuils et mouvements'],
+    promotions: ['Promotions & prix', 'Codes promo et règles de tarification'],
+    clients: ['Clients', 'Gestion de la base partenaires'],
+    shipping: ['Expédition & livraison', 'Zones, tarifs et transporteurs'],
+    content: ['Contenu Home', 'Gérez les rubriques de la page d\'accueil'],
+    permissions: ['Rôles & permissions', 'Contrôle d\'accès de l\'équipe admin'],
+    analytics: ['Analytique', 'Statistiques et rapports de vente'],
+    integration: ['Supervision intégration', 'Santé du bus d\'événements ERP (YME) — isolation sans connexion entrante'],
+    settings: ['Paramètres', 'Configuration de la plateforme'],
+  };
+  const go = (s) => { setSection(s); history.pushState(null, '', `?s=${s}`); };
+  const [t, sub] = titles[section] || ['—', ''];
+  return (
+    <div className="admin-shell">
+      <AdminSideNav active={section} onChange={go} />
+      <div className="admin-content">
+        {/* Top bar */}
+        <div className="admin-topbar">
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--ink-4)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{sub}</div>
+            <h1>{t}</h1>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <Icon name="search" size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-4)' }} />
+            <input className="input" placeholder="Rechercher…" style={{ width: 220, paddingLeft: 30 }} />
+          </div>
+          <button className="icon-btn"><Icon name="bell" size={18} /></button>
+          <a href="Home.html" className="btn btn-ghost btn-sm"><Icon name="externalLink" size={12} /> Espace client</a>
+        </div>
+        {section === 'dashboard' && <Dashboard />}
+        {section === 'orders' && <OrdersAdmin />}
+        {section === 'catalog' && <Catalog />}
+        {section === 'inventory' && <Inventory />}
+        {section === 'clients' && <Clients />}
+        {section === 'promotions' && <Promotions />}
+        {section === 'content'     && <ContentManager />}
+        {section === 'permissions' && <PermissionsManager />}
+        {section === 'analytics' && <Analytics />}
+        {section === 'integration' && <IntegrationHealth />}
+        {section === 'shipping' && <Shipping />}
+        {section === 'settings' && <Settings />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

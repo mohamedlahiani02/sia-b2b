@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA B2B — Commande confirmée</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" /><link rel="stylesheet" href="styles/app.css" />
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data/mockData.js?v=3"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel" src="components/Chrome.jsx"></script>
+<script type="text/babel" src="components/Product.jsx"></script>
+<script type="text/babel">
+const { useEffect } = React;
+function App() {
+  useEffect(() => { localStorage.removeItem('sia_cart'); window.dispatchEvent(new CustomEvent('cart-changed')); }, []);
+  const orderRef = 'CV' + Math.floor(Math.random() * 1000000).toString().padStart(9, '2');
+  return (
+    <>
+      <AppHeader cartCount={0} />
+      <div className="page page-tight" style={{ paddingTop: 60 }}>
+        <div className="card" style={{ padding: 48, textAlign: 'center', maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--ok-soft)', color: 'oklch(0.45 0.12 155)', display: 'inline-grid', placeItems: 'center', marginBottom: 24 }}>
+            <Icon name="check" size={32} />
+          </div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Commande confirmée</h1>
+          <p style={{ color: 'var(--ink-2)', fontSize: 15, marginTop: 8 }}>Merci ETS Ben Djemaa — votre commande a bien été transmise à nos équipes.</p>
+          <div style={{ marginTop: 24, padding: 20, background: 'var(--surface-2)', borderRadius: 12, display: 'inline-block' }}>
+            <div className="label">Numéro de commande</div>
+            <div className="mono" style={{ fontSize: 22, fontWeight: 700, letterSpacing: '0.02em' }}>{orderRef}</div>
+          </div>
+          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 10 }}>
+            <a href="Home.html" className="btn btn-ghost">Retour à l'accueil</a>
+            <a href="Account.html?tab=orders" className="btn btn-primary">Suivre ma commande <Icon name="arrowRight" size={14} /></a>
+          </div>
+        </div>
+      </div>
+      <AppFooter />
+    </>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA B2B — Connexion</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;550;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" /><link rel="stylesheet" href="styles/app.css" />
+</head>
+<body style="background: var(--ink); min-height: 100vh;">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel">
+const { useState } = React;
+function App() {
+  const [id, setId] = useState('CL0013059');
+  const [pw, setPw] = useState('••••••••••••');
+  return (
+    <div style={{ minHeight: '100vh', display: 'grid', gridTemplateColumns: '1fr 480px' }}>
+      <div style={{ background: 'linear-gradient(135deg, var(--ink) 0%, oklch(0.22 0.02 250) 60%, oklch(0.30 0.05 25) 100%)', color: 'white', padding: '48px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle at 80% 20%, oklch(0.56 0.19 25 / 0.20) 0%, transparent 50%)' }}></div>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <img src="assets/logo.png" alt="SIA" style={{ width: 48, height: 48, objectFit: 'contain', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em' }}>SIA B2B</div>
+            <div style={{ fontSize: 11, opacity: 0.7, letterSpacing: '0.06em' }}>بن جماعة وشركاؤه — Sfax</div>
+          </div>
+        </div>
+        <div style={{ position: 'relative', zIndex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, opacity: 0.7, letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 10 }}>Plateforme B2B partenaires</div>
+          <h1 style={{ fontSize: 48, fontWeight: 800, lineHeight: 1.05, letterSpacing: '-0.03em', margin: 0, maxWidth: 520 }}>Vos pièces détachées <span style={{ color: 'var(--sia-red)' }}>neuves &amp; d'origine</span> au meilleur prix, en ligne.</h1>
+          <p style={{ marginTop: 18, fontSize: 14, opacity: 0.75, maxWidth: 460, lineHeight: 1.6 }}>Accédez à plus de 48 000 références, consultez vos tarifs partenaires, suivez vos commandes et vos factures depuis un seul espace.</p>
+        </div>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: 32, fontSize: 12, opacity: 0.6 }}>
+          <div>© 2026 SIA</div><div>Version 2.4</div><div>support@sia.tn · +216 74 200 300</div>
+        </div>
+      </div>
+      <div style={{ background: 'var(--bg)', padding: 48, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ maxWidth: 360, margin: '0 auto', width: '100%' }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>Connexion</div>
+          <h2 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>Bienvenue.</h2>
+          <p style={{ color: 'var(--ink-3)', marginTop: 6, marginBottom: 32, fontSize: 14 }}>Connectez-vous avec votre identifiant SIA.</p>
+          <div style={{ marginBottom: 14 }}>
+            <label className="label">Votre pseudo SIA</label>
+            <input className="input" value={id} onChange={e => setId(e.target.value)} style={{ padding: '12px 14px', fontSize: 14 }} />
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <label className="label">Votre mot de passe</label>
+            <input className="input" type="password" value={pw} onChange={e => setPw(e.target.value)} style={{ padding: '12px 14px', fontSize: 14 }} />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--ink-2)', cursor: 'pointer', marginBottom: 20 }}>
+            <input type="checkbox" defaultChecked style={{ accentColor: 'var(--sia-red)' }} /> Mémoriser mes infos
+          </label>
+          <a href="Home.html" className="btn btn-primary btn-lg" style={{ width: '100%', justifyContent: 'center' }}>Entrer <Icon name="arrowRight" size={14} /></a>
+          <div style={{ marginTop: 20, fontSize: 13, display: 'flex', justifyContent: 'space-between', color: 'var(--ink-3)' }}>
+            <a href="#" style={{ color: 'var(--sia-red)', fontWeight: 600 }}>Mot de passe oublié ?</a>
+            <a href="#">Devenir partenaire</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

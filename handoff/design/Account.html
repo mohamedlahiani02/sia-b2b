@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIA B2B — Mon compte</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/tokens.css" />
+<link rel="stylesheet" href="styles/app.css" />
+<style>
+.acc-shell { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - var(--header-h)); }
+.acc-sidebar {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  position: sticky; top: var(--header-h);
+  height: calc(100vh - var(--header-h));
+  overflow-y: auto;
+  display: flex; flex-direction: column;
+}
+.acc-main { background: var(--bg); min-width: 0; }
+.acc-section-title { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-4); padding: 14px 20px 6px; }
+.acc-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 16px; margin: 1px 8px;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink-2);
+  cursor: pointer; border: none; background: none; width: calc(100% - 16px); text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.acc-nav-item:hover { background: var(--surface-2); color: var(--ink); }
+.acc-nav-item.active { background: var(--sia-red-soft); color: oklch(0.38 0.18 25); font-weight: 600; }
+.acc-nav-item.active .nav-icon { color: var(--sia-red); }
+.nav-icon { color: var(--ink-4); flex-shrink: 0; }
+.acc-inner { padding: 28px; max-width: 960px; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 24px; }
+.section-head h2 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.info-grid { display: grid; grid-template-columns: 180px 1fr; }
+.info-row { display: contents; }
+.info-row > div { padding: 13px 16px; font-size: 13px; border-bottom: 1px solid var(--border); }
+.info-row > div:first-child { color: var(--ink-3); background: var(--surface-2); }
+.info-row > div:last-child { background: var(--surface); font-weight: 500; }
+.order-row { display: grid; grid-template-columns: 200px 130px 180px 100px 110px 120px; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--border); font-size: 13px; gap: 8px; }
+.order-row.header { background: var(--surface-2); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-3); padding: 10px 20px; }
+@media (max-width: 900px) {
+  .acc-shell { grid-template-columns: 1fr; }
+  .acc-sidebar { position: static; height: auto; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="data/mockData.js?v=3"></script>
+<script type="text/babel" src="components/Icon.jsx"></script>
+<script type="text/babel" src="components/Chrome.jsx"></script>
+<script type="text/babel" src="components/Product.jsx"></script>
+<script type="text/babel">
+const { useState, useEffect } = React;
+const C = window.SIA_DATA.CLIENT;
+const ACC_ORDERS = window.SIA_DATA.ORDERS;
+const ACC_MESSAGES = window.SIA_DATA.MESSAGES;
+
+// Helpers — directement depuis window.SIA_DATA (ORDER_STEPS déjà déclaré globalement dans mockData.js)
+// getStepIndex et getOrderStatus sont des fonctions globales de mockData.js
+
+/* ───── NAV ───── */
+const NAV = [
+  { group: 'Activité', items: [
+    { key: 'dashboard', label: 'Tableau de bord', icon: 'home' },
+    { key: 'orders', label: 'Mes commandes', icon: 'box', badge: '3' },
+    { key: 'expert', label: 'Commandes Expert Auto', icon: 'truck' },
+  ]},
+  { group: 'Messages', items: [
+    { key: 'inbox', label: 'Boîte de réception', icon: 'inbox', badge: '3' },
+    { key: 'sent', label: 'Messages envoyés', icon: 'send' },
+    { key: 'ticket', label: 'Nouveau ticket', icon: 'plus' },
+  ]},
+  { group: 'Finances', items: [
+    { key: 'invoices', label: 'Mes factures', icon: 'file' },
+    { key: 'finance', label: 'Historique paiements', icon: 'credit' },
+  ]},
+  { group: 'Compte', items: [
+    { key: 'profile', label: 'Mon profil', icon: 'user' },
+    { key: 'security', label: 'Sécurité', icon: 'lock' },
+  ]},
+];
+
+/* ───── SIDEBAR ───── */
+function Sidebar({ active, onChange }) {
+  return (
+    <aside className="acc-sidebar">
+      {/* Account chip */}
+      <div style={{ padding: '20px 20px 16px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--sia-red)', color: 'white', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>EB</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{C.pseudo}</div>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span className="dot dot-ok" style={{ width: 6, height: 6 }}></span>
+              <span className="mono">{C.code}</span>
+            </div>
+          </div>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+            <div style={{ fontSize: 10, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>Remise</div>
+            <div style={{ fontSize: 14, fontWeight: 700, marginTop: 2, color: 'oklch(0.45 0.12 155)' }}>−15 %</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav groups */}
+      <div style={{ flex: 1, paddingBottom: 12 }}>
+        {NAV.map(group => (
+          <div key={group.group}>
+            <div className="acc-section-title">{group.group}</div>
+            {group.items.map(item => (
+              <button key={item.key}
+                className={`acc-nav-item ${active === item.key ? 'active' : ''}`}
+                onClick={() => { onChange(item.key); history.pushState(null, '', `?tab=${item.key}`); }}
+              >
+                <Icon name={item.icon} size={15} className="nav-icon" style={{ color: active === item.key ? 'var(--sia-red)' : 'var(--ink-4)' }} />
+                <span style={{ flex: 1 }}>{item.label}</span>
+                {item.badge && <span style={{ background: active === item.key ? 'var(--sia-red)' : 'var(--surface-3)', color: active === item.key ? 'white' : 'var(--ink-3)', borderRadius: 999, fontSize: 10, fontWeight: 700, padding: '1px 6px' }}>{item.badge}</span>}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Bottom actions */}
+      <div style={{ padding: '12px 8px', borderTop: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+        <a href="Home.html" className="btn btn-ghost btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+          <Icon name="arrowRight" size={12} /> Retour catalogue
+        </a>
+        <a href="Login.html" className="btn btn-sm" style={{ padding: '6px 10px', color: 'var(--sia-red)', border: '1px solid var(--sia-red-border)', background: 'var(--sia-red-soft)' }}>
+          <Icon name="lock" size={12} />
+        </a>
+      </div>
+    </aside>
+  );
+}
+
+/* ───── DASHBOARD ───── */
+function Dashboard({ onChange }) {
+  const recent = ACC_ORDERS.slice(0, 3);
+  const msgs = ACC_MESSAGES.filter(m => !m.read);
+  const pendingOrders = ACC_ORDERS.filter(o => ['reserved','pending','validated','preparing','shipped'].includes(o.stepKey));
+  const awaitingPayment = ACC_ORDERS.filter(o => ['delivered','shipped'].includes(o.stepKey) && !o.paymentConfirmed);
+  const unpaidTotal = awaitingPayment.reduce((s, o) => s + o.total, 0);
+  const pendingValidation = ACC_ORDERS.filter(o => o.stepKey === 'pending');
+
+  return (
+    <div className="acc-inner">
+      <div className="section-head">
+        <div>
+          <h2>Bonjour, ETS Ben Djemaa 👋</h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>Voici un résumé de votre activité.</p>
+        </div>
+        <a href="Search.html" className="btn btn-primary">
+          <Icon name="search" size={14} /> Nouvelle commande
+        </a>
+      </div>
+
+      {/* Alerte commandes en attente */}
+      {pendingValidation.length > 0 && (
+        <div style={{ marginBottom: 20, background: 'oklch(0.97 0.04 60)', border: '1px solid oklch(0.90 0.06 60)', borderRadius: 10, padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Icon name="clock" size={15} style={{ color: 'oklch(0.52 0.15 60)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, flex: 1 }}><strong>{pendingValidation.length} commande(s)</strong> en attente de validation par SIA.</span>
+          <button onClick={() => onChange('orders')} className="btn btn-sm" style={{ background: 'oklch(0.52 0.15 60)', color: 'white', border: 'none' }}>Voir <Icon name="arrowRight" size={12} /></button>
+        </div>
+      )}
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { icon: 'box',    label: 'Commandes actives',   value: String(pendingOrders.length),  sub: `${pendingValidation.length} en att. validation`, accent: true },
+          { icon: 'credit', label: 'Paiement en attente', value: unpaidTotal > 0 ? `${unpaidTotal.toFixed(0)} DT` : '0 DT', sub: `${awaitingPayment.length} commande(s)` },
+          { icon: 'inbox',  label: 'Messages non lus',    value: String(msgs.length),           sub: msgs.length > 0 ? 'Dernier : aujourd\'hui' : 'Aucun nouveau' },
+          { icon: 'tag',    label: 'Remise active',        value: '−15 %',                       sub: 'Partenaire SIA', accent: false },
+        ].map((k, i) => (
+          <div key={i} className="card" style={{ padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: k.accent ? 'var(--sia-red-soft)' : 'var(--surface-2)', color: k.accent ? 'var(--sia-red)' : 'var(--ink-3)', display: 'grid', placeItems: 'center' }}>
+                <Icon name={k.icon} size={16} />
+              </div>
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{k.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.02em' }}>{k.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{k.sub}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent orders + messages */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 16 }}>
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Commandes récentes</div>
+            <button onClick={() => onChange('orders')} className="btn btn-ghost btn-sm">Tout voir <Icon name="arrowRight" size={12} /></button>
+          </div>
+          {recent.map(o => {
+            const { label, color } = getOrderStatus(o.stepKey);
+            return (
+              <div key={o.id} style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+                onClick={() => onChange('orders')}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{o.id}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{o.date} · {o.items} articles</div>
+                </div>
+                <span className={`badge badge-${color}`}><span className={`dot dot-${color}`}></span>{label}</span>
+                <div className="mono tnum" style={{ fontWeight: 700, fontSize: 13, minWidth: 80, textAlign: 'right' }}>{o.total.toFixed(3)} DT</div>
+              </div>
+            );
+          })}
+          <div style={{ padding: '10px 18px' }}>
+            <button onClick={() => onChange('orders')} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+              Toutes les commandes <Icon name="arrowRight" size={12} />
+            </button>
+          </div>
+        </div>
+
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Messages non lus</div>
+            <button onClick={() => onChange('inbox')} className="btn btn-ghost btn-sm">Boîte <Icon name="arrowRight" size={12} /></button>
+          </div>
+          {msgs.length === 0 ? (
+            <div style={{ padding: 32, textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>Aucun nouveau message</div>
+          ) : msgs.map(m => (
+            <div key={m.id} style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', background: 'var(--sia-red-soft)' }}>
+              <div style={{ fontWeight: 600, fontSize: 12 }}>{m.subject}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 3 }}>{m.date}</div>
+            </div>
+          ))}
+          <div style={{ padding: '12px 18px' }}>
+            <button onClick={() => onChange('ticket')} className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+              <Icon name="send" size={12} /> Envoyer un ticket support
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
+/* ───── ACC_ORDERS ───── */
+function OrderTimeline({ order }) {
+  const rejected = order.stepKey === 'rejected';
+  const currentIdx = getStepIndex(order.stepKey);
+  return (
+    <div style={{ padding: '20px 0', overflowX: 'auto' }}>
+      {rejected ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--sia-red-soft)', border: '1px solid var(--sia-red-border)', borderRadius: 10, fontSize: 13 }}>
+          <Icon name="alert" size={16} style={{ color: 'var(--sia-red)', flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 700, color: 'oklch(0.38 0.18 25)' }}>Commande rejetée</div>
+            {order.rejectReason && <div style={{ color: 'var(--ink-3)', marginTop: 2 }}>{order.rejectReason}</div>}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, minWidth: 640 }}>
+          {window.SIA_DATA.ORDER_STEPS.map((step, idx) => {
+            const done = idx <= currentIdx;
+            const active = idx === currentIdx;
+            return (
+              <div key={step.key} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+                {/* connector */}
+                {idx > 0 && (
+                  <div style={{ position: 'absolute', top: 16, right: '50%', width: '100%', height: 2, background: done ? 'var(--sia-red)' : 'var(--border)', zIndex: 0 }}></div>
+                )}
+                <div style={{ width: 32, height: 32, borderRadius: '50%', background: done ? 'var(--sia-red)' : 'var(--surface-2)', border: `2px solid ${done ? 'var(--sia-red)' : 'var(--border)'}`, display: 'grid', placeItems: 'center', color: done ? 'white' : 'var(--ink-4)', zIndex: 1, transition: 'all 0.2s', boxShadow: active ? '0 0 0 4px var(--sia-red-border)' : 'none' }}>
+                  <Icon name={step.icon} size={13} />
+                </div>
+                <div style={{ marginTop: 8, textAlign: 'center', fontSize: 10, fontWeight: active ? 700 : 500, color: active ? 'var(--sia-red)' : done ? 'var(--ink-2)' : 'var(--ink-4)', lineHeight: 1.3, padding: '0 4px' }}>{step.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderDetail({ order, onClose }) {
+  const { label, color } = getOrderStatus(order.stepKey);
+  const hasBL = order.bl !== '—';
+  const hasFac = order.fac !== '—';
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }} onClick={onClose}>
+      <div style={{ background: 'var(--surface)', borderRadius: 16, width: '100%', maxWidth: 680, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }} onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>Détail commande</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span className="mono" style={{ fontWeight: 700, fontSize: 16 }}>{order.id}</span>
+              <span className={`badge badge-${color}`}><span className={`dot dot-${color}`}></span>{label}</span>
+            </div>
+          </div>
+          <button onClick={onClose} className="btn btn-ghost btn-sm"><Icon name="x" size={14} /></button>
+        </div>
+        {/* Info row */}
+        <div style={{ padding: '16px 24px', display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, borderBottom: '1px solid var(--border)' }}>
+          <div><div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Date</div><div style={{ fontWeight: 600, marginTop: 2 }}>{order.date}</div></div>
+          <div><div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Articles</div><div style={{ fontWeight: 600, marginTop: 2 }}>{order.items} articles</div></div>
+          <div><div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total TTC</div><div className="mono tnum" style={{ fontWeight: 700, fontSize: 15, marginTop: 2 }}>{order.total.toFixed(3)} DT</div></div>
+        </div>
+        {/* Timeline */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Suivi de commande</div>
+          <OrderTimeline order={order} />
+        </div>
+        {/* Documents */}
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>Documents</div>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--sia-red-soft)', color: 'var(--sia-red)', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name="file" size={16} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>BON DE COMMANDE</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{order.bc}</div>
+              </div>
+              <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /></button>
+            </div>
+            <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', border: `1px solid ${hasBL ? 'var(--border)' : 'var(--border)'}`, borderRadius: 10, background: hasBL ? 'var(--bg)' : 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 10, opacity: hasBL ? 1 : 0.5 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: hasBL ? 'oklch(0.95 0.05 155)' : 'var(--surface-3)', color: hasBL ? 'oklch(0.45 0.12 155)' : 'var(--ink-4)', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name="truck" size={16} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>BON DE LIVRAISON</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{order.bl}</div>
+              </div>
+              {hasBL && <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /></button>}
+            </div>
+            <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', border: '1px solid var(--border)', borderRadius: 10, background: hasFac ? 'var(--bg)' : 'var(--surface-2)', display: 'flex', alignItems: 'center', gap: 10, opacity: hasFac ? 1 : 0.5 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: hasFac ? 'oklch(0.96 0.04 60)' : 'var(--surface-3)', color: hasFac ? 'oklch(0.50 0.12 60)' : 'var(--ink-4)', display: 'grid', placeItems: 'center', flexShrink: 0 }}><Icon name="credit" size={16} /></div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 11, color: 'var(--ink-3)', fontWeight: 600 }}>FACTURE</div>
+                <div className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{order.fac}</div>
+              </div>
+              {hasFac && <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /></button>}
+            </div>
+          </div>
+        </div>
+        {/* Payment */}
+        <div style={{ padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 10, background: order.paymentConfirmed ? 'oklch(0.97 0.04 155)' : 'var(--surface-2)', borderBottomLeftRadius: 16, borderBottomRightRadius: 16 }}>
+          <Icon name={order.paymentConfirmed ? 'check' : 'clock'} size={14} style={{ color: order.paymentConfirmed ? 'oklch(0.45 0.12 155)' : 'var(--ink-3)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: order.paymentConfirmed ? 'oklch(0.35 0.12 155)' : 'var(--ink-3)', fontWeight: order.paymentConfirmed ? 600 : 400 }}>
+            {order.paymentConfirmed ? 'Paiement confirmé par SIA' : `Paiement en attente — mode : ${order.paymentMethod}`}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Orders({ expert }) {
+  const { getOrderStatus } = window.SIA_DATA;
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [selected, setSelected] = useState(null);
+  const filtered = ACC_ORDERS.filter(o => {
+    if (search && !o.id.toLowerCase().includes(search.toLowerCase()) && !o.bc.toLowerCase().includes(search.toLowerCase())) return false;
+    if (statusFilter !== 'all' && o.color !== statusFilter) return false;
+    return true;
+  });
+  return (
+    <div className="acc-inner">
+      {selected && <OrderDetail order={selected} onClose={() => setSelected(null)} />}
+      <div className="section-head">
+        <div>
+          <h2>{expert ? 'Commandes Expert Auto' : 'Mes commandes SIA'}</h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>{filtered.length} commandes trouvées</p>
+        </div>
+        <a href="Search.html" className="btn btn-primary"><Icon name="plus" size={14} /> Nouvelle commande</a>
+      </div>
+
+      {/* Filters */}
+      <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
+          <Icon name="search" size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--ink-4)' }} />
+          <input className="input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher par n° de commande ou BC…" style={{ paddingLeft: 32 }} />
+        </div>
+        <select className="select" style={{ width: 200 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+          <option value="all">Tous les statuts</option>
+          <option value="info">Réservée</option>
+          <option value="warn">En attente de validation</option>
+          <option value="ok">Livrée / Confirmée</option>
+          <option value="danger">Rejetée</option>
+        </select>
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div className="order-row header" style={{ gridTemplateColumns: '200px 140px 180px 100px 110px 100px' }}>
+          <span>N° Commande</span><span>Bon de commande</span><span>Statut</span><span>Date</span><span>Montant</span><span></span>
+        </div>
+        {filtered.length === 0 && (
+          <div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)', fontSize: 13 }}>
+            <Icon name="box" size={24} /><div style={{ marginTop: 8 }}>Aucune commande trouvée</div>
+          </div>
+        )}
+        {filtered.map(o => {
+          const { label, color } = getOrderStatus(o.stepKey);
+          return (
+            <div key={o.id} className="order-row" style={{ gridTemplateColumns: '200px 140px 180px 100px 110px 100px', background: 'var(--surface)', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--surface)'}
+            >
+              <div>
+                <div className="mono" style={{ fontWeight: 700, fontSize: 12 }}>{o.id}</div>
+                <div style={{ fontSize: 11, color: 'var(--ink-4)', marginTop: 2 }}>{o.items} article{o.items > 1 ? 's' : ''}</div>
+              </div>
+              <div className="mono" style={{ fontSize: 12, color: 'var(--ink-2)' }}>{o.bc}</div>
+              <div><span className={`badge badge-${color}`}><span className={`dot dot-${color}`}></span>{label}</span></div>
+              <div style={{ fontSize: 12, color: 'var(--ink-2)' }}>{o.date}</div>
+              <div className="mono tnum" style={{ fontWeight: 700, fontSize: 13 }}>{o.total.toFixed(3)} DT</div>
+              <button className="btn btn-primary btn-sm" style={{ justifyContent: 'center' }} onClick={() => setSelected(o)}>
+                Suivre <Icon name="arrowRight" size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ───── ACC_MESSAGES ───── */
+function Messages({ sent }) {
+  const [selected, setSelected] = useState(null);
+  const msgs = ACC_MESSAGES;
+  if (selected) return (
+    <div className="acc-inner">
+      <button className="btn btn-ghost btn-sm" onClick={() => setSelected(null)} style={{ marginBottom: 16 }}>
+        <Icon name="chevronLeft" size={12} /> Retour
+      </button>
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>{selected.subject}</div>
+        <div style={{ fontSize: 12, color: 'var(--ink-3)', marginBottom: 20 }}>{selected.date}</div>
+        <div style={{ background: 'var(--surface-2)', borderRadius: 10, padding: 16, fontSize: 13, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+          Votre commande a été expédiée avec succès depuis nos entrepôts à Sfax. Le bon de livraison vous sera remis à la réception des articles. N'hésitez pas à contacter notre service client si vous avez des questions.
+        </div>
+        <div style={{ marginTop: 20, padding: '12px 16px', background: 'var(--sia-red-soft)', border: '1px solid var(--sia-red-border)', borderRadius: 8, fontSize: 12, color: 'oklch(0.40 0.18 25)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Icon name="info" size={14} /> Ticket fermé le {selected.closed}
+        </div>
+      </div>
+    </div>
+  );
+  return (
+    <div className="acc-inner">
+      <div className="section-head">
+        <div>
+          <h2>{sent ? 'Messages envoyés' : 'Boîte de réception'}</h2>
+          <p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>{msgs.filter(m => !m.read).length} non lu{msgs.filter(m => !m.read).length > 1 ? 's' : ''}</p>
+        </div>
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        {msgs.map((m, i) => (
+          <div key={m.id} onClick={() => setSelected(m)} style={{
+            padding: '14px 18px', borderBottom: '1px solid var(--border)',
+            display: 'grid', gridTemplateColumns: '1fr auto',
+            gap: 16, alignItems: 'center',
+            background: !m.read ? 'var(--sia-red-soft)' : 'var(--surface)',
+            cursor: 'pointer',
+          }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-2)'}
+            onMouseLeave={e => e.currentTarget.style.background = !m.read ? 'var(--sia-red-soft)' : 'var(--surface)'}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                {!m.read && <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sia-red)', display: 'inline-block', flexShrink: 0 }}></span>}
+                <span style={{ fontWeight: m.read ? 500 : 700, fontSize: 13 }}>{m.subject}</span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)' }}>{m.date}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>Fermé : {m.closed}</span>
+              <Icon name="chevronRight" size={14} style={{ color: 'var(--ink-4)' }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───── TICKET ───── */
+function Ticket() {
+  const [sent, setSent] = useState(false);
+  if (sent) return (
+    <div className="acc-inner" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60 }}>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--ok-soft)', color: 'oklch(0.45 0.12 155)', display: 'grid', placeItems: 'center', marginBottom: 16 }}>
+        <Icon name="check" size={28} />
+      </div>
+      <div style={{ fontSize: 20, fontWeight: 700 }}>Ticket envoyé !</div>
+      <p style={{ color: 'var(--ink-3)', marginTop: 6 }}>Notre équipe vous répondra sous 2 h ouvrées.</p>
+      <button className="btn btn-ghost" style={{ marginTop: 12 }} onClick={() => setSent(false)}>Nouveau ticket</button>
+    </div>
+  );
+  return (
+    <div className="acc-inner" style={{ maxWidth: 640 }}>
+      <div className="section-head">
+        <div><h2>Envoyer un ticket</h2><p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>Notre équipe répond sous 2 h ouvrées.</p></div>
+      </div>
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div><label className="label">Sujet</label><input className="input" placeholder="Ex : Question sur la commande CV26004…" /></div>
+          <div><label className="label">Catégorie</label>
+            <select className="select">
+              <option>Commande en cours</option><option>Facture</option>
+              <option>Technique / compatibilité</option><option>Livraison</option><option>Autre</option>
+            </select>
+          </div>
+          <div><label className="label">Message</label><textarea className="input" rows="6" placeholder="Décrivez votre demande en détail…"></textarea></div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost">Annuler</button>
+            <button className="btn btn-primary" onClick={() => setSent(true)}><Icon name="send" size={14} /> Envoyer</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───── INVOICES ───── */
+function Invoices() {
+  const invoices = [
+    { n: 'FAC26-00842', order: 'CV26004135', date: '17 mars 2026', due: '16 avr. 2026', total: 2850.00, status: 'Payée', c: 'ok' },
+    { n: 'FAC26-00807', order: 'CV26004234', date: '18 mars 2026', due: '17 avr. 2026', total: 1240.50, status: 'En attente', c: 'warn' },
+    { n: 'FAC26-00721', order: 'CV26004188', date: '15 mars 2026', due: '14 avr. 2026', total: 480.25, status: 'Payée', c: 'ok' },
+    { n: 'FAC26-00702', order: 'CV26004095', date: '12 mars 2026', due: '11 avr. 2026', total: 1670.80, status: 'Payée', c: 'ok' },
+    { n: 'FAC26-00689', order: 'CV26004095', date: '01 mars 2026', due: '31 mars 2026', total: 920.00, status: 'Impayée', c: 'danger' },
+  ];
+  const totalDue = invoices.filter(i => i.c !== 'ok').reduce((s, i) => s + i.total, 0);
+  return (
+    <div className="acc-inner">
+      <div className="section-head">
+        <div><h2>Mes factures</h2><p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>Historique complet de vos factures</p></div>
+      </div>
+      {totalDue > 0 && (
+        <div style={{ background: 'var(--sia-red-soft)', border: '1px solid var(--sia-red-border)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Icon name="alert" size={16} style={{ color: 'var(--sia-red)', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, color: 'oklch(0.38 0.18 25)' }}>
+            Montant en attente de règlement : <strong className="mono tnum">{totalDue.toFixed(2)} DT</strong>
+          </span>
+        </div>
+      )}
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 160px 100px 100px 100px 100px 120px', padding: '10px 18px', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--ink-3)', gap: 8, alignItems: 'center' }}>
+          <span>N° Facture</span><span>Commande</span><span>Date</span><span>Échéance</span><span>Montant</span><span>Statut</span><span></span>
+        </div>
+        {invoices.map(inv => (
+          <div key={inv.n} style={{ display: 'grid', gridTemplateColumns: '140px 160px 100px 100px 100px 100px 120px', padding: '14px 18px', borderBottom: '1px solid var(--border)', fontSize: 13, gap: 8, alignItems: 'center', background: inv.c === 'danger' ? 'var(--sia-red-soft)' : 'var(--surface)' }}>
+            <div className="mono" style={{ fontWeight: 700 }}>{inv.n}</div>
+            <div className="mono" style={{ color: 'var(--ink-3)', fontSize: 11 }}>{inv.order}</div>
+            <div style={{ color: 'var(--ink-2)' }}>{inv.date}</div>
+            <div style={{ color: inv.c === 'danger' ? 'var(--sia-red)' : 'var(--ink-2)', fontWeight: inv.c === 'danger' ? 700 : 400 }}>{inv.due}</div>
+            <div className="mono tnum" style={{ fontWeight: 700 }}>{inv.total.toFixed(2)} DT</div>
+            <div><span className={`badge badge-${inv.c}`}><span className={`dot dot-${inv.c}`}></span>{inv.status}</span></div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              <button className="btn btn-ghost btn-sm"><Icon name="eye" size={12} /></button>
+              <button className="btn btn-ghost btn-sm"><Icon name="download" size={12} /> PDF</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───── FINANCE ───── */
+function Finance() {
+  const movements = [
+    { date: '17 mars 2026', label: 'Règlement FAC26-00842', type: 'credit', amount: 2850.00 },
+    { date: '18 mars 2026', label: 'Commande CV26004234', type: 'debit', amount: 1240.50 },
+    { date: '15 mars 2026', label: 'Règlement FAC26-00721', type: 'credit', amount: 480.25 },
+    { date: '12 mars 2026', label: 'Commande CV26004095', type: 'debit', amount: 1670.80 },
+  ];
+  return (
+    <div className="acc-inner">
+      <div className="section-head"><div><h2>Historique paiements</h2><p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>Règlements et commandes facturées</p></div></div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 20 }}>
+        <div className="kpi"><div className="kpi-label">Total commandes</div><div className="kpi-value mono tnum">{C.totalOrders}</div></div>
+        <div className="kpi"><div className="kpi-label">Total réglé</div><div className="kpi-value mono tnum" style={{ color: 'oklch(0.45 0.12 155)', fontSize: 24 }}>{C.totalSpent.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DT</div></div>
+        <div className="kpi"><div className="kpi-label">En attente de règlement</div><div className="kpi-value mono tnum" style={{ color: 'var(--sia-red)', fontSize: 24 }}>{C.outstanding.toFixed(2)} DT</div></div>
+      </div>
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 14 }}>Mouvements récents</div>
+        {movements.map((m, i) => (
+          <div key={i} style={{ padding: '12px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: m.type === 'credit' ? 'var(--ok-soft)' : 'var(--sia-red-soft)', color: m.type === 'credit' ? 'oklch(0.45 0.12 155)' : 'var(--sia-red)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
+              <Icon name={m.type === 'credit' ? 'arrowDown' : 'arrowUp'} size={14} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 500 }}>{m.label}</div>
+              <div style={{ fontSize: 11, color: 'var(--ink-3)', marginTop: 2 }}>{m.date}</div>
+            </div>
+            <div className="mono tnum" style={{ fontWeight: 700, color: m.type === 'credit' ? 'oklch(0.45 0.12 155)' : 'var(--sia-red)' }}>
+              {m.type === 'credit' ? '+' : '−'}{m.amount.toFixed(2)} DT
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───── PROFILE ───── */
+function Profile() {
+  const [editing, setEditing] = useState(false);
+  return (
+    <div className="acc-inner" style={{ maxWidth: 700 }}>
+      <div className="section-head">
+        <div><h2>Mon profil</h2><p style={{ margin: '4px 0 0', color: 'var(--ink-3)', fontSize: 13 }}>Informations de votre compte partenaire</p></div>
+        <button className="btn btn-ghost" onClick={() => setEditing(!editing)}>
+          <Icon name={editing ? 'check' : 'edit'} size={14} /> {editing ? 'Enregistrer' : 'Modifier'}
+        </button>
+      </div>
+
+      <div className="card" style={{ overflow: 'hidden', marginBottom: 16 }}>
+        <div style={{ padding: '18px 20px', background: 'linear-gradient(90deg, var(--ink) 0%, oklch(0.28 0.01 250) 100%)', color: 'white', display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 52, height: 52, borderRadius: 12, background: 'var(--sia-red)', display: 'grid', placeItems: 'center', fontWeight: 700, fontSize: 18 }}>EB</div>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{C.pseudo}</div>
+            <div style={{ fontSize: 12, opacity: 0.75, marginTop: 2, display: 'flex', gap: 8 }}>
+              <span className="mono">{C.code}</span>
+              <span>·</span>
+              <span className="badge badge-ok" style={{ fontSize: 10 }}><span className="dot dot-ok"></span>{C.status}</span>
+            </div>
+          </div>
+        </div>
+        <div className="info-grid" style={{ borderRadius: 0 }}>
+          {[
+            ['Raison sociale', C.pseudo],
+            ['Code client', C.code],
+            ['Email', C.email],
+            ['Téléphone fixe', C.phone],
+            ['Téléphone mobile', C.mobile],
+            ['Adresse', C.address],
+            ['Inscrit le', C.registered],
+          ].map(([k, v]) => (
+            <div className="info-row" key={k}>
+              <div>{k}</div>
+              <div>
+                {editing ? <input className="input" defaultValue={v} style={{ padding: '6px 10px', fontSize: 13 }} /> : v}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        {[
+          { label: 'Commandes totales', value: C.totalOrders },
+          { label: 'Total dépensé', value: `${C.totalSpent.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} DT` },
+          { label: 'Encours', value: `${C.outstanding.toFixed(2)} DT` },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ padding: 16 }}>
+            <div style={{ fontSize: 11, color: 'var(--ink-3)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>{s.label}</div>
+            <div className="mono tnum" style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───── SECURITY ───── */
+function Security() {
+  return (
+    <div className="acc-inner" style={{ maxWidth: 560 }}>
+      <div className="section-head"><div><h2>Sécurité du compte</h2></div></div>
+      <div className="card" style={{ padding: 24 }}>
+        <div style={{ fontWeight: 700, marginBottom: 16 }}>Changer le mot de passe</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div><label className="label">Mot de passe actuel</label><input type="password" className="input" placeholder="••••••••" /></div>
+          <div><label className="label">Nouveau mot de passe</label><input type="password" className="input" placeholder="••••••••" /></div>
+          <div><label className="label">Confirmer</label><input type="password" className="input" placeholder="••••••••" /></div>
+          <button className="btn btn-primary" style={{ alignSelf: 'flex-start' }}><Icon name="lock" size={14} /> Mettre à jour</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───── APP ───── */
+function App() {
+  const { count } = useCart();
+  const urlTab = new URLSearchParams(window.location.search).get('tab') || 'dashboard';
+  const [tab, setTab] = useState(urlTab);
+
+  const content = {
+    dashboard: <Dashboard onChange={setTab} />,
+    orders: <Orders />,
+    expert: <Orders expert />,
+    inbox: <Messages />,
+    sent: <Messages sent />,
+    ticket: <Ticket />,
+    invoices: <Invoices />,
+    finance: <Finance />,
+    profile: <Profile />,
+    security: <Security />,
+  };
+
+  return (
+    <>
+      <AppHeader cartCount={count} />
+      <div className="acc-shell">
+        <Sidebar active={tab} onChange={setTab} />
+        <main className="acc-main">
+          {content[tab] || <Dashboard onChange={setTab} />}
+        </main>
+      </div>
+      <AppFooter />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

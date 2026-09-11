@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Contrats API — SIA B2B</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/spec.css">
+</head>
+<body>
+<nav class="sidebar">
+<div class="sidebar-logo"><div class="name">SIA B2B — Backend</div><div class="sub">Contrats API · v2.0</div></div>
+<div class="sidebar-docs">
+<a href="Backend Spec.html">Spécification &amp; architecture</a>
+<a class="here" href="API Contracts.html">Contrats API</a>
+<a href="Product Backlog.html">Product backlog</a>
+</div>
+<div class="nav-group">Cadre</div>
+<a class="nav-item" href="#conv">1. Conventions</a>
+<a class="nav-item" href="#map">2. Carte des contrôleurs</a>
+<div class="nav-group">API publique</div>
+<a class="nav-item" href="#auth">3. Authentification</a>
+<a class="nav-item" href="#catalog">4. Catalogue &amp; recherche</a>
+<a class="nav-item" href="#cart">5. Panier</a>
+<a class="nav-item" href="#orders">6. Commandes</a>
+<a class="nav-item" href="#account">7. Compte</a>
+<div class="nav-group">API admin</div>
+<a class="nav-item" href="#admin-orders">8. Commandes (SIA)</a>
+<a class="nav-item" href="#admin-ref">9. Clients, promos, contenu</a>
+<a class="nav-item" href="#admin-ops">10. Supervision</a>
+<div class="nav-group">Intégration</div>
+<a class="nav-item" href="#ingest">11. Passerelle d'ingestion</a>
+<a class="nav-item" href="#outbox">12. Outbox commandes</a>
+<a class="nav-item" href="#dto">13. DTO à définir</a>
+</nav>
+
+<main class="main">
+<div class="eyebrow">Document technique interne</div>
+<h1 class="page-title">Contrats API</h1>
+<p class="page-sub">Trois surfaces indépendantes : l'API publique consommée par le site client, l'API d'administration du back-office SIA, et l'API d'intégration utilisée par le connecteur du client. Chacune a sa propre authentification, ses propres quotas et son propre cycle de version.</p>
+<div class="meta-row">
+<span class="meta-pill">Base <b>/api/v1</b> · <b>/ingest/v1</b></span>
+<span class="meta-pill">Interne <b>topics Kafka</b></span>
+<span class="meta-pill">Format <b>JSON camelCase</b></span>
+<span class="meta-pill">Spec <b>OpenAPI 3.1 générée</b></span>
+<span class="meta-pill">Corps produit/stock <b>à définir — §13</b></span>
+</div>
+
+<section id="conv">
+<h2><span class="num">1</span> Conventions</h2>
+<table>
+<thead><tr><th>Sujet</th><th>Règle</th></tr></thead>
+<tbody>
+<tr><td>Préfixes</td><td><code>/api/v1/**</code> client · <code>/api/v1/admin/**</code> back-office · <code>/ingest/v1/**</code> connecteur</td></tr>
+<tr><td>Authentification client</td><td>Cookie de session <code>HttpOnly</code>. Aucun jeton en paramètre d'URL.</td></tr>
+<tr><td>Authentification connecteur</td><td>En-têtes <code>X-Sia-Source</code>, <code>X-Sia-Timestamp</code>, <code>X-Sia-Signature</code> (HMAC-SHA256 du corps brut + horodatage). Fenêtre de validité : 5 min.</td></tr>
+<tr><td>Écritures rejouables</td><td>En-tête <code>Idempotency-Key</code> obligatoire sur <code>POST /orders</code> et sur toute opération admin non réversible. Conservée 24 h ; même clé = même réponse.</td></tr>
+<tr><td>Pagination</td><td><code>?cursor=&amp;limit=</code> (défaut 24, max 100). Réponse : <code>{ items, nextCursor, hasMore }</code>. Pas de comptage total sur le catalogue (coûteux et sans usage).</td></tr>
+<tr><td>Tri</td><td><code>?sort=champ:asc|desc</code>, champs autorisés listés par endpoint. Toute autre valeur → <code>422</code>.</td></tr>
+<tr><td>Concurrence</td><td><code>If-Match</code> avec l'<code>ETag</code> de la ressource sur les mises à jour de panier et de commande. Conflit → <code>412</code>.</td></tr>
+<tr><td>Dates</td><td>ISO 8601 UTC avec <code>Z</code>, en entrée comme en sortie.</td></tr>
+<tr><td>Montants</td><td>Chaîne décimale (<code>"128.500"</code>) pour éviter toute perte de précision en JSON. Devise portée par le champ voisin.</td></tr>
+<tr><td>Nullité</td><td>Un champ absent et un champ <code>null</code> ont le même sens : non renseigné. Aucune valeur par défaut implicite côté serveur.</td></tr>
+<tr><td>Erreurs</td><td>Enveloppe unique (<a href="Backend Spec.html#errors">spec §10.1</a>) avec <code>code</code> stable et <code>traceId</code>.</td></tr>
+<tr><td>Versionnement</td><td>Ajout de champ = non cassant. Retrait ou changement de type = nouvelle version de préfixe. Deux versions maximum servies simultanément.</td></tr>
+</tbody>
+</table>
+<h3>Codes de statut employés</h3>
+<div class="status-grid">
+<div class="status-item"><span class="status-code s-2">200</span> Lecture ou écriture aboutie</div>
+<div class="status-item"><span class="status-code s-2">201</span> Ressource créée (<code>Location</code> renseigné)</div>
+<div class="status-item"><span class="status-code s-2">202</span> Accepté pour traitement asynchrone (ingestion)</div>
+<div class="status-item"><span class="status-code s-2">204</span> Suppression aboutie</div>
+<div class="status-item"><span class="status-code s-4">400</span> Requête malformée</div>
+<div class="status-item"><span class="status-code s-4">401</span> Non authentifié ou signature invalide</div>
+<div class="status-item"><span class="status-code s-4">403</span> Authentifié mais non autorisé</div>
+<div class="status-item"><span class="status-code s-4">404</span> Ressource inexistante ou non visible par l'appelant</div>
+<div class="status-item"><span class="status-code s-4">409</span> Conflit métier (état, stock, prix)</div>
+<div class="status-item"><span class="status-code s-4">412</span> Précondition <code>If-Match</code> non satisfaite</div>
+<div class="status-item"><span class="status-code s-4">413</span> Corps trop volumineux</div>
+<div class="status-item"><span class="status-code s-4">422</span> Validation de champ échouée</div>
+<div class="status-item"><span class="status-code s-4">429</span> Quota dépassé</div>
+<div class="status-item"><span class="status-code s-5">500</span> Anomalie interne</div>
+<div class="status-item"><span class="status-code s-5">503</span> Dépendance indisponible</div>
+</div>
+</section>
+
+<section id="map">
+<h2><span class="num">2</span> Carte des contrôleurs</h2>
+<table>
+<thead><tr><th>Contrôleur</th><th>Base</th><th>Accès</th><th>Services appelés</th></tr></thead>
+<tbody>
+<tr><td class="k">AuthController</td><td class="m">/api/v1/auth</td><td>Anonyme</td><td class="m">AuthService, RegistrationService</td></tr>
+<tr><td class="k">CatalogController</td><td class="m">/api/v1/catalog</td><td>Client actif</td><td class="m">CatalogQueryService, PricingService, AvailabilityService</td></tr>
+<tr><td class="k">SearchController</td><td class="m">/api/v1/search</td><td>Client actif</td><td class="m">SearchService</td></tr>
+<tr><td class="k">CartController</td><td class="m">/api/v1/cart</td><td>Client actif</td><td class="m">CartService, PricingService, AvailabilityService</td></tr>
+<tr><td class="k">OrderController</td><td class="m">/api/v1/orders</td><td>Client actif</td><td class="m">OrderService, ReservationService</td></tr>
+<tr><td class="k">AccountController</td><td class="m">/api/v1/account</td><td>Client actif</td><td class="m">AccountService</td></tr>
+<tr><td class="k">AdminOrderController</td><td class="m">/api/v1/admin/orders</td><td>ADMIN, OPERATOR</td><td class="m">OrderService, OutboxService</td></tr>
+<tr><td class="k">AdminCustomerController</td><td class="m">/api/v1/admin/customers</td><td>ADMIN</td><td class="m">AccountService, ProjectionQueryService</td></tr>
+<tr><td class="k">AdminCatalogController</td><td class="m">/api/v1/admin/catalog</td><td>ADMIN, OPERATOR</td><td class="m">ProjectionQueryService, MediaService</td></tr>
+<tr><td class="k">AdminPromotionController</td><td class="m">/api/v1/admin/promotions</td><td>ADMIN</td><td class="m">PromotionService</td></tr>
+<tr><td class="k">AdminContentController</td><td class="m">/api/v1/admin/content</td><td>ADMIN, OPERATOR</td><td class="m">ContentService, MediaService</td></tr>
+<tr><td class="k">AdminOpsController</td><td class="m">/api/v1/admin/ops</td><td>ADMIN</td><td class="m">SyncHealthService, ReconciliationService</td></tr>
+<tr><td class="k">IngestionController</td><td class="m">/ingest/v1/events</td><td>Source signée</td><td class="m">EventIngestionService</td></tr>
+<tr><td class="k">OutboxController</td><td class="m">/ingest/v1/outbox</td><td>Source signée</td><td class="m">OutboxService</td></tr>
+</tbody>
+</table>
+<div class="note rule"><div class="note-title">Règle de contrôleur</div><p>Un contrôleur ne contient que : validation de forme, appel d'un service applicatif, mapping vers le DTO de réponse. Aucune requête repository, aucune condition métier, aucune transaction ouverte au niveau contrôleur.</p></div>
+</section>
+
+<section id="auth">
+<h2><span class="num">3</span> Authentification</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/auth/register</span><span class="endpoint-desc">Demande d'ouverture de compte professionnel</span></div>
+<div class="endpoint-body">
+<h4>Requête</h4>
+<pre>{
+  "companyName":  "Garage Central",      <i>requis</i>
+  "taxId":        "1234567/A/M/000",     <i>requis — identifiant fiscal</i>
+  "contactName":  "…",  "email": "…",  "phone": "…",   <i>requis</i>
+  "password":     "…",                   <i>requis — 10 caractères min.</i>
+  "address":      { … }                  <i>requis</i>
+}</pre>
+<h4>Réponse <span class="chip chip-own">201</span></h4>
+<pre>{ "status": "PENDING", "message": "Demande enregistrée. Validation par SIA sous 24 h ouvrées." }</pre>
+<p>Crée un compte <code>PENDING</code> sans rattachement client. Le rattachement à un client YME est posé par SIA à la validation. Aucun accès catalogue avant activation (RM-01). Notification au back-office.</p>
+<h4>Erreurs</h4><p><code>422</code> validation · <code>409 EMAIL_ALREADY_USED</code> · <code>429</code> après 3 demandes par IP et par heure.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/auth/login</span><span class="endpoint-desc">Ouverture de session</span></div>
+<div class="endpoint-body">
+<pre>→ { "email": "…", "password": "…" }
+← 200  Set-Cookie: sia_session=…; HttpOnly; Secure; SameSite=Lax
+   { "user": { "id", "contactName", "companyName", "role", "customerLinked": true } }</pre>
+<p><code>customerLinked: false</code> signifie que le compte est actif mais sans rattachement YME : navigation possible, prix et commande refusés (<code>CUSTOMER_NOT_LINKED</code>).</p>
+<h4>Erreurs</h4><p><code>401 AUTH_INVALID_CREDENTIALS</code> (message uniforme) · <code>403 AUTH_ACCOUNT_PENDING</code> · <code>403 AUTH_ACCOUNT_SUSPENDED</code> · <code>429</code> après 5 échecs sur 15 min.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/auth/logout</span><span class="endpoint-desc">Révoque la session côté serveur</span></div>
+<div class="endpoint-body"><pre>← 204</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/auth/me</span><span class="endpoint-desc">Session courante</span></div>
+<div class="endpoint-body"><pre>← 200 { "user": { … }, "permissions": ["CATALOG_READ","ORDER_CREATE"] }
+← 401 si session absente ou expirée</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/auth/password/reset-request</span><span class="endpoint-desc">Envoi du lien de réinitialisation</span></div>
+<div class="endpoint-body"><pre>→ { "email": "…" }
+← 202   <i>réponse identique que le compte existe ou non</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/auth/password/reset</span><span class="endpoint-desc">Application du nouveau mot de passe</span></div>
+<div class="endpoint-body"><pre>→ { "token": "…", "password": "…" }
+← 204   <i>jeton à usage unique, valable 1 h ; toutes les sessions sont révoquées</i></pre></div></div>
+</section>
+
+<section id="catalog">
+<h2><span class="num">4</span> Catalogue &amp; recherche</h2>
+<div class="note tbd"><div class="note-title">Corps de réponse à définir</div><p>Les objets <code>ProductSummary</code> et <code>ProductDetail</code> dépendent du modèle produit de YME (TBD-01). Seules les enveloppes, les paramètres, les champs calculés par la plateforme (prix résolu, disponibilité, fraîcheur) et les erreurs sont figés ici.</p></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/catalog/products</span><span class="endpoint-desc">Liste filtrée</span></div>
+<div class="endpoint-body">
+<h4>Paramètres</h4>
+<table>
+<thead><tr><th>Paramètre</th><th>Type</th><th>Effet</th></tr></thead>
+<tbody>
+<tr><td class="k">family</td><td class="t">string[]</td><td>Filtre par famille (référentiel YME — TBD-01)</td></tr>
+<tr><td class="k">brand</td><td class="t">string[]</td><td>Filtre par marque</td></tr>
+<tr><td class="k">vehicle</td><td class="t">string</td><td>Compatibilité véhicule <span class="chip chip-tbd">source à définir</span></td></tr>
+<tr><td class="k">availability</td><td class="t">enum</td><td><code>IN_STOCK</code> · <code>ALL</code> — défaut <code>ALL</code></td></tr>
+<tr><td class="k">sort</td><td class="t">string</td><td><code>label:asc</code> · <code>price:asc|desc</code> · <code>updated:desc</code></td></tr>
+<tr><td class="k">cursor, limit</td><td class="t">string, int</td><td>Pagination</td></tr>
+</tbody>
+</table>
+<h4>Réponse <span class="chip chip-own">200</span></h4>
+<pre>{
+  "items": [ { <b>…ProductSummary — TBD-01</b>,
+      <i>champs calculés par la plateforme :</i>
+      "price":        { "amount": "128.500", "currency": "TND", "source": "CUSTOMER_TARIFF" },
+      "availability": { "state": "IN_STOCK", "quantity": 12, "asOf": "2026-09-11T08:12:00Z" }
+  } ],
+  "nextCursor": "…", "hasMore": true,
+  "freshness":  { "lastEventAt": "2026-09-11T08:13:40Z", "lagSeconds": 4 }
+}</pre>
+<p><code>quantity</code> peut être omis selon la politique d'affichage retenue (TBD-07) ; <code>state</code> est toujours présent. <code>freshness</code> permet à l'interface d'afficher honnêtement l'âge de la donnée (RM-11).</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/catalog/products/{sourceRef}</span><span class="endpoint-desc">Fiche produit</span></div>
+<div class="endpoint-body">
+<p>Identifiée par la référence YME, jamais par un identifiant interne : les URL restent stables et correspondent à ce que le client connaît. Retourne <code>ProductDetail</code> (TBD-01), les mêmes blocs <code>price</code>, <code>availability</code>, <code>freshness</code>, les médias et les paliers quantitatifs applicables.</p>
+<h4>Erreurs</h4><p><code>404 PRODUCT_NOT_FOUND</code> — journalisé avec la référence, car ce peut être un retard d'ingestion et non une erreur du client. <code>409 PRODUCT_INACTIVE</code> n'est pas retourné ici : la fiche reste consultable (RM-05), le champ <code>orderable: false</code> porte l'information.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/catalog/families</span><span class="endpoint-desc">Arborescence des familles</span></div>
+<div class="endpoint-body"><pre>← 200 { "items": [ { "code", "label", "productCount", "children": [ … ] } ] }
+   <i>construite depuis les projections ; mise en cache 5 min, invalidée par événement produit</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/search</span><span class="endpoint-desc">Recherche plein texte</span></div>
+<div class="endpoint-body">
+<pre>?q=filtre+huile&amp;limit=24&amp;cursor=…
+
+← 200 { "items": [ …ProductSummary ], "nextCursor": …, "took": 82,
+        "suggestions": ["filtre à huile"] }</pre>
+<p>Implémentation PostgreSQL full-text (<code>tsvector</code> + trigrammes pour la tolérance aux fautes), indexée à la projection. Champs indexés à arrêter avec TBD-01 : au minimum référence, libellé, référence constructeur, marque. Recherche exacte prioritaire sur la référence : une requête qui correspond exactement à une référence renvoie ce produit en premier.</p>
+<h4>Erreurs</h4><p><code>422</code> si <code>q</code> fait moins de 2 caractères · <code>429</code> au-delà de 30 requêtes/min par session.</p>
+</div></div>
+</section>
+
+<section id="cart">
+<h2><span class="num">5</span> Panier</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/cart</span><span class="endpoint-desc">Panier courant</span></div>
+<div class="endpoint-body"><pre>← 200  ETag: "v14"
+{
+  "id": "…", "version": 14,
+  "lines": [ { "id", "productSourceRef", "label", "quantity",
+               "unitPrice": { … }, "lineTotal": { … },
+               "flags": ["PRICE_CHANGED"] } ],
+  "totals":  { "ht": "1284.000", "vat": "…", "ttc": "…", "currency": "TND" },
+  "warnings": [ { "lineId": "…", "code": "PRICE_CHANGED", "was": "…", "now": "…" } ]
+}</pre>
+<p>Les totaux TTC dépendent de la règle fiscale (TBD-09) ; jusqu'à son arbitrage, seul <code>ht</code> est garanti.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/cart/lines</span><span class="endpoint-desc">Ajout de ligne</span></div>
+<div class="endpoint-body">
+<pre>→ { "productSourceRef": "…", "quantity": 4 }
+← 201 { …panier complet }</pre>
+<p>Le prix résolu est figé sur la ligne avec son horodatage. Un ajout d'une référence déjà présente incrémente la quantité existante.</p>
+<h4>Erreurs</h4><p><code>404 PRODUCT_NOT_FOUND</code> · <code>409 PRODUCT_INACTIVE</code> · <code>409 PRICE_UNRESOLVED</code> · <code>422 PACKAGING_VIOLATION</code> (retourne le multiple attendu) · <code>409 STOCK_INSUFFICIENT</code> (retourne le disponible).</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method PATCH">PATCH</span><span class="endpoint-url">/api/v1/cart/lines/{lineId}</span><span class="endpoint-desc">Modification de quantité</span></div>
+<div class="endpoint-body"><pre>If-Match: "v14"
+→ { "quantity": 6 }
+← 200 { …panier }   ·   412 si le panier a changé entre-temps</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method DELETE">DELETE</span><span class="endpoint-url">/api/v1/cart/lines/{lineId}</span><span class="endpoint-desc">Retrait de ligne</span></div>
+<div class="endpoint-body"><pre>← 200 { …panier }</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/cart/validate</span><span class="endpoint-desc">Revalidation avant commande — ne modifie rien</span></div>
+<div class="endpoint-body">
+<pre>← 200
+{
+  "valid": false,
+  "revalidationToken": "…",        <i>requis pour soumettre, valable 10 min</i>
+  "issues": [
+    { "lineId": "…", "code": "STOCK_INSUFFICIENT", "requested": 12, "available": 4 },
+    { "lineId": "…", "code": "PRICE_CHANGED", "was": "128.500", "now": "131.000" },
+    { "lineId": "…", "code": "PRODUCT_INACTIVE" }
+  ]
+}</pre>
+<p>Opération de lecture : elle n'ajuste ni les quantités ni les prix. Le client décide. Le <code>revalidationToken</code> scelle l'état vu par le client ; toute divergence à la soumission provoque <code>409 CART_REVALIDATION_REQUIRED</code> (RM-07).</p>
+</div></div>
+</section>
+
+<section id="orders">
+<h2><span class="num">6</span> Commandes (client)</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/orders</span><span class="endpoint-desc">Soumission</span></div>
+<div class="endpoint-body">
+<pre>Idempotency-Key: 6f3c-…          <i>obligatoire</i>
+→ {
+  "revalidationToken": "…",       <i>obligatoire — issu de /cart/validate</i>
+  "deliveryMode":   "PICKUP" | "DELIVERY",
+  "deliveryAddressId": "…",        <i>requis si DELIVERY</i>
+  "customerReference": "BC-2026-118",  <i>référence interne du client, optionnelle</i>
+  "notes": "…"
+}
+← 201  Location: /api/v1/orders/{id}
+{
+  "id": "…", "orderNumber": "SIA-2026-00418", "state": "SUBMITTED",
+  "submittedAt": "…", "totals": { … },
+  "lines": [ { "productSourceRef", "label", "quantity", "unitPrice", "lineTotal" } ],
+  "reservations": { "expiresAt": "2026-09-13T08:20:00Z" }
+}</pre>
+<p>Effets : création de la commande, attribution du numéro, pose des réservations locales 48 h (RM-08), vidage du panier, notification au back-office. <b>Aucun appel vers YME</b> : la commande n'entre dans l'outbox qu'après validation SIA.</p>
+<h4>Erreurs</h4><p><code>409 CART_REVALIDATION_REQUIRED</code> · <code>409 CUSTOMER_NOT_LINKED</code> · <code>422</code> panier vide ou adresse manquante · <code>200 ORDER_DUPLICATE_SUBMISSION</code> (retourne la commande initiale).</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/orders</span><span class="endpoint-desc">Historique</span></div>
+<div class="endpoint-body"><pre>?state=&amp;from=&amp;to=&amp;cursor=&amp;limit=
+← 200 { "items": [ { "id","orderNumber","state","submittedAt","totals","lineCount" } ], "nextCursor" }</pre>
+<p>Strictement borné au rattachement client de la session.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/orders/{id}</span><span class="endpoint-desc">Détail et suivi</span></div>
+<div class="endpoint-body"><pre>← 200
+{
+  "id","orderNumber","state","erpDocumentRef": "BC00231",   <i>null avant accusé YME</i>
+  "lines": [ { …, "quantityOrdered": 12, "quantityConfirmed": 8 } ],
+  "timeline": [ { "state": "SUBMITTED", "at": "…", "actor": "CUSTOMER" },
+                { "state": "VALIDATED", "at": "…", "actor": "SIA" },
+                { "state": "PARTIALLY_CONFIRMED", "at": "…", "actor": "ERP",
+                  "note": "4 unités indisponibles sur la référence …" } ]
+}</pre>
+<p><code>quantityConfirmed</code> reste <code>null</code> jusqu'à la confirmation YME. La <code>timeline</code> est la projection de <code>order_state_log</code> : le client voit la même vérité que le support.</p>
+<h4>Erreurs</h4><p><code>404</code> si la commande n'appartient pas au rattachement client de la session — jamais <code>403</code>, pour ne pas révéler son existence.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/orders/{id}/cancel</span><span class="endpoint-desc">Annulation par le client</span></div>
+<div class="endpoint-body"><pre>→ { "reason": "…" }
+← 200 { "state": "CANCELLED" }
+← 409 ORDER_NOT_CANCELLABLE   <i>si état ≠ SUBMITTED (RM-09)</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/orders/{id}/reorder</span><span class="endpoint-desc">Recommander à l'identique</span></div>
+<div class="endpoint-body"><pre>← 200 { …panier, "skipped": [ { "productSourceRef", "code": "PRODUCT_INACTIVE" } ] }</pre>
+<p>Remplit le panier courant aux prix et disponibilités <b>du jour</b>, jamais à ceux de la commande d'origine. Les références devenues indisponibles sont listées explicitement.</p></div></div>
+</section>
+
+<section id="account">
+<h2><span class="num">7</span> Compte</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/account/profile</span><span class="endpoint-desc">Profil et rattachement</span></div>
+<div class="endpoint-body"><pre>← 200 { "companyName","taxId","contactName","email","phone",
+        "customer": { "sourceRef": "CL0041", "tariffLabel": "…", "paymentTerms": "…" } }
+   <i>le bloc "customer" provient de la projection YME — champs exacts : TBD-04</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method PATCH">PATCH</span><span class="endpoint-url">/api/v1/account/profile</span><span class="endpoint-desc">Coordonnées de contact</span></div>
+<div class="endpoint-body"><pre>→ { "contactName","phone" }
+← 200</pre>
+<p>Modifiable uniquement pour les champs appartenant à la plateforme. Raison sociale, identifiant fiscal, tarif et conditions viennent de YME et sont en lecture seule (RM-03) : toute correction passe par SIA.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/account/addresses</span><span class="endpoint-desc">Adresses de livraison</span></div>
+<div class="endpoint-body"><pre>← 200 { "items": [ { "id","label","line1","city","postalCode","isDefault" } ] }
+POST /addresses · PATCH /addresses/{id} · DELETE /addresses/{id}
+<i>Adresses propres à la plateforme. Si YME détient les adresses de livraison, ce bloc devient une projection en lecture seule — TBD-04.</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/account/password</span><span class="endpoint-desc">Changement de mot de passe</span></div>
+<div class="endpoint-body"><pre>→ { "currentPassword","newPassword" }
+← 204   <i>les autres sessions sont révoquées</i></pre></div></div>
+</section>
+
+<section id="admin-orders">
+<h2><span class="num">8</span> Commandes — back-office SIA</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/orders</span><span class="endpoint-desc">File de traitement</span></div>
+<div class="endpoint-body"><pre>?state=SUBMITTED&amp;customer=&amp;from=&amp;to=&amp;flag=RESERVATION_EXPIRING&amp;sort=submittedAt:asc
+← 200 { "items": [ { …, "flags": ["STOCK_SHORTFALL","RESERVATION_EXPIRING"] } ],
+        "counts": { "SUBMITTED": 12, "VALIDATED": 3, "EXPORTED": 1 } }</pre>
+<p><code>flags</code> : signaux calculés destinés à orienter l'opérateur — écart entre quantité demandée et stock projeté, réservation proche de l'expiration, dépassement d'encours (RM-12), client sans rattachement.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/orders/{id}/validate</span><span class="endpoint-desc">Validation → dépôt dans l'outbox</span></div>
+<div class="endpoint-body">
+<pre>Idempotency-Key: …
+→ { "note": "…" }
+← 200 { "state": "VALIDATED", "outboxMessageId": "…" }</pre>
+<p>Transition et écriture du message d'outbox dans <b>une seule transaction</b> : il ne peut exister de commande validée sans message à destination de YME, ni de message sans commande validée.</p>
+<h4>Erreurs</h4><p><code>409 ORDER_INVALID_TRANSITION</code> (retourne l'état courant et les transitions possibles).</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/orders/{id}/reject</span><span class="endpoint-desc">Refus</span></div>
+<div class="endpoint-body"><pre>→ { "reason": "…" }     <i>motif obligatoire — transmis au client</i>
+← 200 { "state": "REJECTED" }   <i>réservations libérées, client notifié</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method PATCH">PATCH</span><span class="endpoint-url">/api/v1/admin/orders/{id}/lines/{lineId}</span><span class="endpoint-desc">Ajustement avant validation</span></div>
+<div class="endpoint-body"><pre>→ { "quantity": 8, "reason": "stock réel insuffisant" }
+← 200 { …commande, "timeline": [ … ] }
+← 409 ORDER_INVALID_TRANSITION   <i>si état ≠ SUBMITTED</i></pre>
+<p>Possible uniquement avant validation, motif obligatoire, tracé dans <code>order_state_log</code> et notifié au client. Le prix unitaire n'est jamais modifiable par cette voie.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/orders/{id}/trace</span><span class="endpoint-desc">Traçabilité complète</span></div>
+<div class="endpoint-body"><pre>← 200 { "stateLog": [ … ], "outboxMessages": [ { "id","state","deliveryCount","ackedAt" } ],
+        "relatedEvents": [ { "eventId","eventType","receivedAt","state" } ] }</pre>
+<p>Écran de support : d'un numéro de commande jusqu'aux événements YME qui l'ont fait évoluer.</p></div></div>
+</section>
+
+<section id="admin-ref">
+<h2><span class="num">9</span> Clients, promotions, contenu</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/customers</span><span class="endpoint-desc">Comptes plateforme et rattachements</span></div>
+<div class="endpoint-body"><pre>?status=PENDING|ACTIVE|SUSPENDED&amp;linked=true|false&amp;q=
+← 200 { "items": [ { "id","companyName","email","status",
+                     "customerSourceRef","customerProjection": { … } } ] }</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/customers/{id}/approve</span><span class="endpoint-desc">Activation et rattachement YME</span></div>
+<div class="endpoint-body"><pre>→ { "customerSourceRef": "CL0041" }    <i>obligatoire — doit exister en projection</i>
+← 200 { "status": "ACTIVE" }
+← 409 CUSTOMER_REF_UNKNOWN             <i>référence absente des projections</i></pre>
+<p>Un compte ne peut être activé sans rattachement valide : sans lui, ni prix ni commande ne sont possibles (RM-02).</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/customers/{id}/suspend</span><span class="endpoint-desc">Suspension</span></div>
+<div class="endpoint-body"><pre>→ { "reason": "…" }
+← 200   <i>sessions révoquées immédiatement</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/catalog/products</span><span class="endpoint-desc">Inspection des projections</span></div>
+<div class="endpoint-body"><pre>?status=ACTIVE|INACTIVE|ORPHANED&amp;staleSince=&amp;q=
+← 200 { "items": [ { "sourceRef","label","status","sourceVersion",
+                     "projectedAt","lastEventId","stock": { … } } ] }</pre>
+<p><b>Lecture seule.</b> Aucun endpoint d'écriture n'existe sur les projections produit ou stock (RM-03). Ce qui est modifiable côté plateforme : médias, mise en avant, rattachement à une section d'accueil.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/promotions</span><span class="endpoint-desc">Promotions plateforme</span></div>
+<div class="endpoint-body"><pre>POST /promotions
+→ { "scope": "CUSTOMER"|"FAMILY"|"PRODUCT", "targetRef": "…",
+    "kind": "PERCENT"|"AMOUNT", "value": "7.5",
+    "startsAt": "…", "endsAt": "…" }
+← 201
+← 422 PROMOTION_BELOW_FLOOR   <i>si le prix résultant passe sous le plancher (RM-13, TBD-10)</i></pre>
+<p>Les promotions sont locales à la plateforme et n'existent pas dans YME. Elles s'appliquent après le tarif client. Cumul et plancher : TBD-10.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/content/blocks</span><span class="endpoint-desc">Sections de la page d'accueil</span></div>
+<div class="endpoint-body"><pre>POST /blocks · PATCH /blocks/{id} · DELETE /blocks/{id} · POST /blocks/reorder
+{ "kind": "HERO"|"PRODUCT_STRIP"|"BANNER"|"RICH_TEXT", "position": 2,
+  "payload": { … }, "published": true }</pre>
+<p>Un bloc <code>PRODUCT_STRIP</code> référence des produits par <code>sourceRef</code> ; les références disparues sont ignorées à l'affichage et signalées dans le back-office.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/media/upload-url</span><span class="endpoint-desc">URL d'envoi signée S3/R2</span></div>
+<div class="endpoint-body"><pre>→ { "kind": "PRODUCT_IMAGE", "targetRef": "REF-1288", "contentType": "image/webp", "bytes": 284100 }
+← 200 { "uploadUrl": "https://…", "objectKey": "…", "expiresIn": 900 }
+POST /api/v1/admin/media/confirm  → { "objectKey": "…" }   <i>enregistre les métadonnées et génère les variantes</i></pre>
+<p>Le binaire ne traverse pas l'application : envoi direct vers le stockage objet par URL signée. Types acceptés et taille maximale contrôlés à l'émission de l'URL.</p></div></div>
+</section>
+
+<section id="admin-ops">
+<h2><span class="num">10</span> Supervision</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/ops/sync-health</span><span class="endpoint-desc">Santé des flux</span></div>
+<div class="endpoint-body"><pre>← 200
+{
+  "sources": [ { "sourceCode": "yme-prod", "lastSeenAt": "…", "silenceSeconds": 12,
+                 "lastSequence": 148203, "sequenceGaps": 0, "status": "OK" } ],
+  "lag":     { "currentSeconds": 4, "p95Seconds": 9, "maxSeconds": 41 },
+  "byType":  [ { "eventType": "stock.changed", "received24h": 3182, "applied": 3180,
+                 "superseded": 2, "dead": 0, "lastAt": "…" } ],
+  "deadLetterCount": 0,
+  "outbox":  { "pending": 1, "oldestPendingAgeSeconds": 210 }
+}</pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/ops/events</span><span class="endpoint-desc">Journal des événements</span></div>
+<div class="endpoint-body"><pre>?eventType=&amp;entityRef=&amp;state=&amp;from=&amp;to=&amp;cursor=
+← 200 { "items": [ { "eventId","eventType","entityRef","entityVersion",
+                     "occurredAt","receivedAt","processedAt","state","attempts","lastError" } ] }
+
+GET /ops/events/{eventId}   ← 200 { …, "payload": { … } }   <i>payload brut, accès tracé dans audit_log</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/api/v1/admin/ops/events/replay</span><span class="endpoint-desc">Rejeu</span></div>
+<div class="endpoint-body"><pre>→ { "eventIds": [ … ] }   ou   { "entityRef": "REF-1288", "from": "…", "to": "…" }
+← 202 { "queued": 14 }</pre>
+<p>Le rejeu réinjecte l'événement conservé sans le modifier. Les contrôles d'ordre restent actifs : un rejeu ne peut pas faire régresser une projection plus récente.</p></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/ops/reconciliation</span><span class="endpoint-desc">Rapports de réconciliation</span></div>
+<div class="endpoint-body"><pre>← 200 { "runs": [ { "id","startedAt","finishedAt","compared":48210,
+                    "mismatches":3,"reportUrl":"https://…signed" } ] }
+POST /ops/reconciliation/run   ← 202   <i>déclenche une comparaison à la demande</i></pre></div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/api/v1/admin/ops/stock-movements</span><span class="endpoint-desc">Historique des variations</span></div>
+<div class="endpoint-body"><pre>?productSourceRef=&amp;from=&amp;to=
+← 200 { "items": [ { "at","delta":-4,"quantityAfter":8,"cause":"stock.changed","eventId":"…" } ] }</pre></div></div>
+</section>
+
+<section id="ingest">
+<h2><span class="num">11</span> Passerelle d'ingestion</h2>
+<div class="note rule"><div class="note-title">Contrat de la passerelle</div><p>Elle valide l'enveloppe, pas le contenu. Un payload de structure inattendue est <b>accepté et stocké</b> puis échoue à la projection, où il devient visible dans la file d'erreurs — sauf si la <code>schemaVersion</code> est inconnue, cas de rejet immédiat (P6). Ce partage est délibéré : ne jamais perdre un message du client, mais ne jamais l'interpréter au hasard.</p><p>La passerelle n'appelle pas Kafka : elle écrit en base et répond. Un relais interne publie ensuite sur le topic correspondant (<a href="Backend Spec.html#events">spec §5.5</a>). Un courtier indisponible n'empêche donc aucune réception.</p></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/ingest/v1/events</span><span class="endpoint-desc">Dépôt d'un événement ou d'un lot</span></div>
+<div class="endpoint-body">
+<pre>X-Sia-Source: yme-prod
+X-Sia-Timestamp: 1789012345
+X-Sia-Signature: sha256=…          <i>HMAC du corps brut + timestamp</i>
+Content-Type: application/json
+
+→ { "events": [ { …enveloppe §5.3 } ] }     <i>1 à 500 événements, 1 Mo max</i>
+
+← 202
+{
+  "accepted": 498,
+  "results": [
+    { "eventId": "…", "status": "ACCEPTED" },
+    { "eventId": "…", "status": "DUPLICATE" },
+    { "eventId": "…", "status": "REJECTED", "code": "INGEST_ENVELOPE_INVALID",
+      "details": [ { "field": "occurredAt", "issue": "format attendu ISO 8601 UTC" } ] }
+  ]
+}</pre>
+<p>Réponse par élément : un lot n'est jamais rejeté en bloc pour un élément fautif. Le connecteur peut reprendre précisément ce qui a échoué. <code>DUPLICATE</code> est un succès du point de vue du connecteur : il peut rejouer sans précaution.</p>
+<h4>Erreurs de niveau requête</h4><p><code>401 INGEST_SIGNATURE_INVALID</code> · <code>403 INGEST_SOURCE_UNKNOWN</code> · <code>413 INGEST_PAYLOAD_TOO_LARGE</code> · <code>422 INGEST_SCHEMA_UNSUPPORTED</code> · <code>429</code> au-delà du quota de la source.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/ingest/v1/snapshots/stock</span><span class="endpoint-desc">État complet du stock</span></div>
+<div class="endpoint-body">
+<pre>→ { "snapshotId": "…", "takenAt": "…", "totalLines": 48210,
+    "chunk": 3, "chunkCount": 97, "lines": [ { …TBD-02 } ] }
+← 202 { "snapshotId": "…", "chunksReceived": 3, "complete": false }</pre>
+<p>Envoi par tranches ; la réconciliation ne démarre qu'une fois toutes les tranches reçues. Une tranche manquante fait expirer le snapshot au bout de 2 h sans effet sur les projections. Sert aussi à la reprise après incident.</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/ingest/v1/health</span><span class="endpoint-desc">Contrôle côté connecteur</span></div>
+<div class="endpoint-body"><pre>← 200 { "status": "UP", "lastSequenceReceived": 148203,
+        "expectedNextSequence": 148204, "pendingOutboxMessages": 1 }</pre>
+<p>Permet au connecteur de détecter seul un décalage de séquence et de rejouer l'intervalle manquant sans intervention humaine.</p></div></div>
+</section>
+
+<section id="outbox">
+<h2><span class="num">12</span> Outbox — commandes vers YME</h2>
+<div class="endpoint"><div class="endpoint-header"><span class="method GET">GET</span><span class="endpoint-url">/ingest/v1/outbox</span><span class="endpoint-desc">Retrait des messages en attente</span></div>
+<div class="endpoint-body">
+<pre>?limit=50&amp;leaseSeconds=300
+← 200
+{
+  "messages": [
+    { "messageId": "…", "messageType": "order.submitted", "createdAt": "…",
+      "deliveryCount": 1, "leasedUntil": "…",
+      "payload": { <b>…format de commande — TBD-05</b> } }
+  ]
+}</pre>
+<p>Les messages retournés passent <code>LEASED</code> jusqu'à <code>leasedUntil</code> et ne sont pas servis à un autre appel. Sans accusé avant échéance, ils redeviennent <code>PENDING</code> avec <code>deliveryCount</code> incrémenté.</p>
+<p>Cette boîte est une table Postgres, pas un topic Kafka : le connecteur du client n'a besoin que d'un client HTTP. Kafka reste interne à la plateforme (<a href="Backend Spec.html#events">spec §5.6</a>).</p>
+</div></div>
+<div class="endpoint"><div class="endpoint-header"><span class="method POST">POST</span><span class="endpoint-url">/ingest/v1/outbox/ack</span><span class="endpoint-desc">Accusé de traitement</span></div>
+<div class="endpoint-body">
+<pre>→ { "acks": [ { "messageId": "…", "result": "APPLIED", "erpDocumentRef": "BC00231" },
+              { "messageId": "…", "result": "FAILED", "reason": "client bloqué dans YME" } ] }
+← 200 { "acked": 2 }</pre>
+<p><code>APPLIED</code> clôt le message et fait basculer la commande en <code>ACKNOWLEDGED</code> avec la référence de pièce YME. <code>FAILED</code> marque le message <code>FAILED</code>, lève une alerte back-office et n'est pas re-servi automatiquement — un échec métier dans YME demande une décision humaine, pas une nouvelle tentative.</p>
+<h4>Erreurs</h4><p><code>404 OUTBOX_ACK_UNKNOWN</code> si le message est inconnu ; réponse <code>200</code> s'il était déjà acquitté (idempotent).</p>
+</div></div>
+<div class="note warn"><div class="note-title">Exigence à porter au connecteur</div><p>La remise est <b>au moins une fois</b>. Le connecteur doit rendre l'injection dans YME idempotente sur <code>orderNumber</code> : recevoir deux fois la commande <code>SIA-2026-00418</code> ne doit jamais créer deux pièces. À valider avec le client lors de l'arbitrage TBD-05/TBD-06.</p></div>
+</section>
+
+<section id="dto">
+<h2><span class="num">13</span> DTO à définir avec le client</h2>
+<p>Ces objets ne sont volontairement pas spécifiés. Ils doivent être calqués sur les structures réelles de YME, sans transformation ni interprétation : c'est la condition pour que le flux événementiel soit fiable. Les inventer produirait une correspondance approximative et des erreurs silencieuses en production.</p>
+<table>
+<thead><tr><th>DTO</th><th>Employé par</th><th>Éléments à obtenir du client</th><th>Réf.</th></tr></thead>
+<tbody>
+<tr><td class="k">ProductPayload</td><td class="m">product.upserted</td><td>Champs exhaustifs, types, longueurs, obligatoires ; référentiels famille/marque/unité ; conditionnement et multiples de vente ; références constructeur et équivalences ; identifiant naturel stable</td><td class="m">TBD-01</td></tr>
+<tr><td class="k">ProductSummary / ProductDetail</td><td class="m">GET /catalog/**</td><td>Dérivés de <code>ProductPayload</code> : quels champs sont affichables, filtrables, recherchables</td><td class="m">TBD-01</td></tr>
+<tr><td class="k">StockPayload</td><td class="m">stock.changed</td><td>Sémantique exacte de la quantité (physique / disponible / réservée) ; dépôts ; unité ; présence d'un compteur de version ; fréquence attendue</td><td class="m">TBD-02</td></tr>
+<tr><td class="k">StockSnapshotLine</td><td class="m">POST /snapshots/stock</td><td>Même structure que <code>StockPayload</code>, confirmée pour l'export complet</td><td class="m">TBD-02</td></tr>
+<tr><td class="k">PricePayload</td><td class="m">price.changed</td><td>Tarifs par client, paliers quantitatifs, remises, arrondis, niveau où le prix final est calculé</td><td class="m">TBD-03</td></tr>
+<tr><td class="k">CustomerPayload</td><td class="m">customer.upserted</td><td>Identifiant client, tarif rattaché, conditions de règlement, encours, statut, adresses</td><td class="m">TBD-04</td></tr>
+<tr><td class="k">OrderExportPayload</td><td class="m">GET /outbox</td><td>Structure exacte d'une commande injectable dans YME : en-tête, lignes, champs obligatoires, contraintes de longueur et de codification</td><td class="m">TBD-05</td></tr>
+<tr><td class="k">OrderAckPayload</td><td class="m">order.acknowledged / confirmed</td><td>Format des retours : référence de pièce, quantités confirmées par ligne, motifs de refus, codes de statut logistique</td><td class="m">TBD-05</td></tr>
+</tbody>
+</table>
+<h3>Méthode d'arbitrage proposée</h3>
+<ol>
+<li>Le client fournit un <b>export réel</b> (50 lignes représentatives) pour chaque entité : produit, stock, tarif, client.</li>
+<li>Nous en dérivons un schéma proposé, champ par champ, avec type, obligation et signification retenue.</li>
+<li>Relecture conjointe : le client corrige la signification de chaque champ, en particulier les unités, les codes et les cas de valeur vide.</li>
+<li>Gel en <code>schemaVersion 1</code>. Les évolutions ultérieures passent par une nouvelle version, jamais par une modification silencieuse.</li>
+<li>Un jeu d'événements de test est constitué à partir de l'export et rejoué en environnement de recette avant toute mise en production (TBD-14).</li>
+</ol>
+</section>
+</main>
+</body>
+</html>

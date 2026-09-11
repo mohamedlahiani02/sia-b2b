@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Proposition Commerciale — Plateforme B2B SIA</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --red: #C8102E;
+    --red-light: #fdf2f4;
+    --red-border: #f5c0c8;
+    --ink: #0f1117;
+    --ink-2: #374151;
+    --ink-3: #6b7280;
+    --ink-4: #9ca3af;
+    --border: #e5e7eb;
+    --surface: #f9fafb;
+    --green: #059669;
+    --green-light: #ecfdf5;
+  }
+  html { font-family: 'Inter', sans-serif; color: var(--ink); background: #fff; font-size: 14px; line-height: 1.6; }
+  body { max-width: 860px; margin: 0 auto; padding: 40px 32px 80px; }
+
+  /* Print */
+  @media print {
+    body { padding: 0; max-width: 100%; }
+    .no-print { display: none !important; }
+    .page-break { page-break-before: always; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ── Header ── */
+  .doc-header { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; margin-bottom: 48px; padding-bottom: 32px; border-bottom: 3px solid var(--ink); }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-avatar { width: 52px; height: 52px; background: var(--ink); border-radius: 12px; display: grid; place-items: center; }
+  .brand-avatar svg { width: 28px; height: 28px; fill: white; }
+  .brand-name { font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
+  .brand-sub { font-size: 11px; color: var(--ink-3); letter-spacing: 0.06em; text-transform: uppercase; margin-top: 2px; }
+  .doc-meta { text-align: right; }
+  .doc-type { font-size: 28px; font-weight: 900; letter-spacing: -0.04em; color: var(--red); }
+  .doc-ref { font-size: 11px; color: var(--ink-3); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+  /* ── Parties ── */
+  .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 40px; }
+  .party { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; }
+  .party-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); margin-bottom: 10px; }
+  .party-name { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .party-detail { font-size: 12px; color: var(--ink-3); line-height: 1.7; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 36px; }
+  .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-4); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  h2.section-h { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 10px; }
+
+  /* ── Modules table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--ink); color: white; padding: 10px 14px; text-align: left; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+  th:last-child { text-align: right; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  td:last-child { text-align: right; font-family: 'JetBrains Mono', monospace; font-weight: 600; white-space: nowrap; }
+  tr:nth-child(even) td { background: var(--surface); }
+  tr:hover td { background: var(--red-light); }
+  .module-name { font-weight: 700; margin-bottom: 3px; }
+  .module-desc { font-size: 11px; color: var(--ink-3); line-height: 1.5; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+  .badge-inc { background: var(--green-light); color: var(--green); }
+  .badge-opt { background: #fffbeb; color: #b45309; }
+
+  /* ── Totals ── */
+  .totals { background: var(--ink); color: white; border-radius: 12px; padding: 24px 28px; margin-top: 8px; }
+  .total-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid oklch(0.28 0.01 250); font-size: 13px; }
+  .total-row:last-child { border-bottom: none; padding-top: 14px; margin-top: 6px; }
+  .total-row.grand { font-size: 20px; font-weight: 900; letter-spacing: -0.02em; color: white; }
+  .total-row.grand span:last-child { color: #fbbf24; }
+  .total-label { color: oklch(0.75 0.01 250); }
+  .total-amount { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+
+  /* ── Timeline ── */
+  .timeline { display: flex; flex-direction: column; gap: 0; }
+  .tl-item { display: grid; grid-template-columns: 120px 32px 1fr; gap: 16px; align-items: start; padding: 16px 0; position: relative; }
+  .tl-item:not(:last-child)::after { content: ''; position: absolute; left: 136px; top: 44px; bottom: -4px; width: 2px; background: var(--border); }
+  .tl-date { font-size: 11px; color: var(--ink-3); text-align: right; padding-top: 4px; font-family: 'JetBrains Mono', monospace; }
+  .tl-dot { width: 32px; height: 32px; border-radius: 50%; background: var(--red); display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; z-index: 1; flex-shrink: 0; }
+  .tl-content strong { font-size: 14px; font-weight: 700; display: block; margin-bottom: 3px; }
+  .tl-content span { font-size: 12px; color: var(--ink-3); }
+
+  /* ── Conditions ── */
+  .conditions { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
+  .cond-row { display: flex; gap: 16px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; align-items: baseline; }
+  .cond-row:last-child { border-bottom: none; }
+  .cond-key { font-weight: 600; min-width: 200px; color: var(--ink-2); }
+  .cond-val { color: var(--ink-3); }
+
+  /* ── Signature ── */
+  .signature-block { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border); }
+  .sig-box { }
+  .sig-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-4); margin-bottom: 8px; }
+  .sig-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .sig-title { font-size: 12px; color: var(--ink-3); margin-bottom: 20px; }
+  .sig-line { height: 64px; border: 1.5px dashed var(--border); border-radius: 8px; margin-top: 8px; display: flex; align-items: center; justify-content: center; color: var(--ink-4); font-size: 11px; }
+
+  /* ── Features list ── */
+  .feat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .feat-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; padding: 6px 0; }
+  .feat-check { width: 16px; height: 16px; border-radius: 50%; background: var(--green-light); color: var(--green); display: grid; place-items: center; flex-shrink: 0; margin-top: 1px; font-size: 10px; font-weight: 900; }
+
+  /* ── Alert box ── */
+  .alert { background: var(--red-light); border: 1px solid var(--red-border); border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #7f1d1d; line-height: 1.6; margin-bottom: 20px; }
+  .alert strong { color: var(--red); }
+
+  /* ── Print button ── */
+  .print-btn { position: fixed; bottom: 24px; right: 24px; background: var(--ink); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 100; }
+  .print-btn:hover { background: var(--red); }
+</style>
+</head>
+<body>
+
+<!-- Print button -->
+<button class="print-btn no-print" onclick="window.print()">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+  Imprimer / Enregistrer PDF
+</button>
+
+<!-- ── HEADER ── -->
+<div class="doc-header">
+  <div class="brand">
+    <div class="brand-avatar">
+      <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </div>
+    <div>
+      <div class="brand-name">Prestataire Digital</div>
+      <div class="brand-sub">Développement & Conseil IT</div>
+    </div>
+  </div>
+  <div class="doc-meta">
+    <div class="doc-type">DEVIS</div>
+    <div class="doc-ref">Réf. : DEV-2026-SIA-001</div>
+    <div class="doc-ref" style="margin-top:4px;">Date : 30 avril 2026</div>
+    <div class="doc-ref" style="margin-top:4px;">Validité : 30 jours</div>
+  </div>
+</div>
+
+<!-- ── PARTIES ── -->
+<div class="parties">
+  <div class="party">
+    <div class="party-label">Prestataire</div>
+    <div class="party-name">Prestataire Digital SARL</div>
+    <div class="party-detail">
+      Route de Tunis, Km 3<br />
+      Sfax 3000 — Tunisie<br />
+      contact@prestataire.tn<br />
+      +216 74 XXX XXX<br />
+      MF : XXXXXXXXX/A/P/M/000
+    </div>
+  </div>
+  <div class="party">
+    <div class="party-label">Client</div>
+    <div class="party-name">Sfaxienne Industrielle Automobile</div>
+    <div class="party-detail">
+      Route de Tunis, Km 8<br />
+      Sfax 3002 — Tunisie<br />
+      contact@sia.tn<br />
+      +216 74 200 300<br />
+      MF : 0XXXXXXX/A/P/M/000
+    </div>
+  </div>
+</div>
+
+<!-- ── OBJET ── -->
+<div class="section">
+  <div class="section-title">Objet de la proposition</div>
+  <h2 class="section-h">Développement de la Plateforme B2B SIA</h2>
+  <p style="color:var(--ink-2); font-size:13px; line-height:1.7; max-width:700px;">
+    La présente proposition commerciale porte sur la conception, le développement et la mise en production d'une plateforme de commerce électronique B2B dédiée aux partenaires distributeurs de la SIA (Sfaxienne Industrielle Automobile). La solution couvre l'ensemble du cycle de commande, de la recherche de pièces jusqu'à la confirmation de paiement, ainsi qu'une console d'administration complète.
+  </p>
+</div>
+
+<!-- ── PÉRIMÈTRE FONCTIONNEL ── -->
+<div class="section">
+  <div class="section-title">Périmètre fonctionnel inclus</div>
+  <div class="feat-grid">
+    <div class="feat-item"><div class="feat-check">✓</div><div>Authentification sécurisée partenaires (JWT)</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Catalogue produits 48 000+ références avec recherche avancée</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Filtres par véhicule (marque / modèle / version)</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Panier & génération automatique de bon de commande</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Flux commande complet (réservation → validation → livraison)</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Dashboard client : suivi commandes, historique paiements</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Console admin : gestion commandes, catalogue, stock</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Promotions par client ou par famille d'articles</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Gestionnaire de contenu page d'accueil (sections dynamiques)</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Système de rôles & permissions admin (RBAC)</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Messagerie interne client ↔ SIA</div></div>
+    <div class="feat-item"><div class="feat-check">✓</div><div>Mode de paiement personnalisé par client (chèque, effet…)</div></div>
+  </div>
+</div>
+
+<!-- ── DÉCOMPOSITION DEVIS ── -->
+<div class="section">
+  <div class="section-title">Décomposition du devis par module</div>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:30%">Module</th>
+        <th style="width:38%">Prestations incluses</th>
+        <th style="width:12%">Durée est.</th>
+        <th style="width:10%">Statut</th>
+        <th style="width:10%">Montant HT</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <div class="module-name">01 — Architecture & Setup</div>
+          <div class="module-desc">Analyse fonctionnelle, conception base de données, mise en place infrastructure</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">API REST NestJS, PostgreSQL, Redis, Docker, CI/CD pipeline, documentation technique</td>
+        <td style="font-family:monospace;">2 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>1 200 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">02 — Auth & Gestion clients</div>
+          <div class="module-desc">Authentification JWT, profils partenaires, mode paiement</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Login, refresh token, gestion sessions, fiche client complète, RBAC admin</td>
+        <td style="font-family:monospace;">1,5 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>950 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">03 — Catalogue & Recherche</div>
+          <div class="module-desc">Import catalogue, recherche full-text, filtres véhicule / OEM / fournisseur</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Elasticsearch ou PgSearch, import CSV 48k+ réf., pagination, cache Redis</td>
+        <td style="font-family:monospace;">2,5 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>1 400 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">04 — Commandes & Bon de commande</div>
+          <div class="module-desc">Flux complet : panier → réservation → BC → validation admin → livraison → paiement</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Machine à états, génération PDF bon de commande, notifications statut, historique</td>
+        <td style="font-family:monospace;">3 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>1 600 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">05 — Dashboard Admin</div>
+          <div class="module-desc">KPIs temps réel, validation commandes, gestion stock, alertes ruptures</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Endpoints agrégation, WebSocket pour alertes, mouvements stock, top produits</td>
+        <td style="font-family:monospace;">2 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>1 100 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">06 — Promotions & Tarification</div>
+          <div class="module-desc">Moteur de remises par client, par famille, activation/désactivation dynamique</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Rules engine, remises cumulables, calcul automatique au panier</td>
+        <td style="font-family:monospace;">1,5 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>700 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">07 — Contenu & CMS Home</div>
+          <div class="module-desc">Gestionnaire de rubriques page d'accueil, bannières, annonces</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">CRUD sections, ordre dynamique, activation/désactivation, éditeur bannière</td>
+        <td style="font-family:monospace;">1 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>450 DT</td>
+      </tr>
+      <tr>
+        <td>
+          <div class="module-name">08 — Tests & Déploiement</div>
+          <div class="module-desc">Tests unitaires & intégration, déploiement VPS/cloud, documentation API Swagger</div>
+        </td>
+        <td style="font-size:12px; color:var(--ink-3);">Jest, Postman collection, Swagger UI, mise en production, formation équipe</td>
+        <td style="font-family:monospace;">1,5 sem.</td>
+        <td><span class="badge badge-inc">Inclus</span></td>
+        <td>600 DT</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totals" style="margin-top:16px;">
+    <div class="total-row">
+      <span class="total-label">Sous-total modules (01 → 08)</span>
+      <span class="total-amount">8 000,000 DT</span>
+    </div>
+    <div class="total-row">
+      <span class="total-label">Remise commerciale accordée</span>
+      <span class="total-amount" style="color:#34d399;">− 500,000 DT</span>
+    </div>
+    <div class="total-row">
+      <span class="total-label">TVA (19 %)</span>
+      <span class="total-amount">+ 1 425,500 DT</span>
+    </div>
+    <div class="total-row grand">
+      <span>TOTAL TTC</span>
+      <span>8 925,500 DT</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── VARIANTES ── -->
+<div class="section page-break">
+  <div class="section-title">Variantes de périmètre</div>
+  <table>
+    <thead>
+      <tr><th>Option</th><th>Périmètre</th><th>Délai</th><th>Prix HT</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><div class="module-name" style="color:var(--ink-3);">🔵 Essentiel</div></td>
+        <td style="font-size:12px; color:var(--ink-3);">Modules 01 à 04 uniquement — Auth, Catalogue, Commandes de base</td>
+        <td style="font-family:monospace; font-size:12px;">9 semaines</td>
+        <td style="font-family:monospace; font-weight:700;">6 000 DT</td>
+      </tr>
+      <tr style="background:var(--red-light);">
+        <td><div class="module-name" style="color:var(--red);">⭐ Standard <small style="font-size:10px; background:var(--red); color:white; padding:2px 6px; border-radius:4px; margin-left:6px;">RECOMMANDÉ</small></div></td>
+        <td style="font-size:12px; color:var(--ink-3);">Modules 01 à 07 — Périmètre complet sans module tests avancés</td>
+        <td style="font-family:monospace; font-size:12px;">13 semaines</td>
+        <td style="font-family:monospace; font-weight:700; color:var(--red);">7 500 DT</td>
+      </tr>
+      <tr>
+        <td><div class="module-name">🟣 Premium</div></td>
+        <td style="font-size:12px; color:var(--ink-3);">Modules 01 à 08 + maintenance 3 mois + formation équipe SIA</td>
+        <td style="font-family:monospace; font-size:12px;">15 semaines</td>
+        <td style="font-family:monospace; font-weight:700;">9 000 DT</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── PLANNING ── -->
+<div class="section">
+  <div class="section-title">Planning prévisionnel — Option Standard</div>
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-date">Sem. 1–2</div>
+      <div class="tl-dot">1</div>
+      <div class="tl-content">
+        <strong>Architecture & Setup</strong>
+        <span>Conception BDD, mise en place API, environnement dev/staging, CI/CD</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">Sem. 3–4</div>
+      <div class="tl-dot">2</div>
+      <div class="tl-content">
+        <strong>Auth, Clients & Catalogue</strong>
+        <span>Authentification JWT, profils partenaires, import catalogue 48k réf., recherche</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">Sem. 5–7</div>
+      <div class="tl-dot">3</div>
+      <div class="tl-content">
+        <strong>Flux commande complet</strong>
+        <span>Panier, bon de commande, validation admin, machine à états, notifications</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">Sem. 8–9</div>
+      <div class="tl-dot">4</div>
+      <div class="tl-content">
+        <strong>Dashboard Admin & Stock</strong>
+        <span>KPIs temps réel, gestion commandes, alertes ruptures, mouvements stock</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">Sem. 10–11</div>
+      <div class="tl-dot">5</div>
+      <div class="tl-content">
+        <strong>Promotions & CMS</strong>
+        <span>Moteur de remises, gestionnaire contenu Home, annonces dynamiques</span>
+      </div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-date">Sem. 12–13</div>
+      <div class="tl-dot">6</div>
+      <div class="tl-content">
+        <strong>Tests, recette & mise en production</strong>
+        <span>Tests d'intégration, correction bugs, déploiement production, documentation Swagger</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONDITIONS ── -->
+<div class="section">
+  <div class="section-title">Conditions commerciales & contractuelles</div>
+  <div class="conditions">
+    <div class="cond-row"><div class="cond-key">Mode de règlement</div><div class="cond-val">Virement bancaire ou chèque à l'ordre du prestataire</div></div>
+    <div class="cond-row"><div class="cond-key">Échéancier de paiement</div><div class="cond-val">30 % à la signature • 40 % à la livraison recette • 30 % à la mise en production</div></div>
+    <div class="cond-row"><div class="cond-key">Validité du devis</div><div class="cond-val">30 jours à compter de la date d'émission (30 avril 2026)</div></div>
+    <div class="cond-row"><div class="cond-key">Propriété intellectuelle</div><div class="cond-val">Transfert intégral des droits au client après paiement complet</div></div>
+    <div class="cond-row"><div class="cond-key">Garantie post-livraison</div><div class="cond-val">3 mois de corrections de bugs sans surcoût (hors nouvelles fonctionnalités)</div></div>
+    <div class="cond-row"><div class="cond-key">Hébergement</div><div class="cond-val">Non inclus — accompagnement à la mise en place (VPS OVH ou AWS recommandé)</div></div>
+    <div class="cond-row"><div class="cond-key">Modifications de périmètre</div><div class="cond-val">Tout ajout hors périmètre fait l'objet d'un avenant tarifé 150 DT/jour</div></div>
+    <div class="cond-row"><div class="cond-key">Livrables</div><div class="cond-val">Code source complet, documentation technique, collection Postman, Swagger UI</div></div>
+  </div>
+</div>
+
+<!-- ── SIGNATURES ── -->
+<div class="signature-block">
+  <div class="sig-box">
+    <div class="sig-label">Le prestataire</div>
+    <div class="sig-name">Prestataire Digital SARL</div>
+    <div class="sig-title">Représentant légal</div>
+    <div style="font-size:12px; color:var(--ink-3); margin-bottom:6px;">Bon pour accord — Lu et approuvé</div>
+    <div class="sig-line">Signature & cachet</div>
+    <div style="font-size:11px; color:var(--ink-4); margin-top:8px;">Date : _____ / _____ / 2026</div>
+  </div>
+  <div class="sig-box">
+    <div class="sig-label">Le client</div>
+    <div class="sig-name">Sfaxienne Industrielle Automobile</div>
+    <div class="sig-title">Gérant ou mandataire</div>
+    <div style="font-size:12px; color:var(--ink-3); margin-bottom:6px;">Bon pour accord — Lu et approuvé</div>
+    <div class="sig-line">Signature & cachet</div>
+    <div style="font-size:11px; color:var(--ink-4); margin-top:8px;">Date : _____ / _____ / 2026</div>
+  </div>
+</div>
+
+<div style="margin-top:40px; padding-top:24px; border-top:1px solid var(--border); font-size:11px; color:var(--ink-4); text-align:center; line-height:1.8;">
+  Devis non contractuel avant signature des deux parties · Réf. DEV-2026-SIA-001 · Établi le 30 avril 2026<br />
+  Prestataire Digital SARL · Route de Tunis, Km 3, Sfax 3000 · MF : XXXXXXXXX/A/P/M/000
+</div>
+
+</body>
+</html>
