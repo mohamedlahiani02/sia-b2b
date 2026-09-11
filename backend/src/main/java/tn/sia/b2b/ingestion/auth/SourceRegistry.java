@@ -9,6 +9,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.HexFormat;
 
 /**
  * Authentifie les sources d'ingestion via HMAC-SHA256.

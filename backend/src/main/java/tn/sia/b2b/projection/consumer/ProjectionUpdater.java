@@ -76,6 +76,15 @@ public class ProjectionUpdater {
         upsertProjection("customer_projection", event, "ACTIVE");
     }
 
+    // order.confirmed / order.partially_confirmed / order.rejected
+    // Pas de table order_projection : ces événements déclenchent une mise à jour
+    // de l'état de la commande dans la table orders (Lot 5 — post-YME).
+    // Pour l'instant : log uniquement, pas de projection dédiée.
+    private void applyOrderEvent(ProjectionEvent event) {
+        log.info("[PROJECTION] Événement commande reçu eventType={} entityRef={} — traitement Lot 5",
+            event.eventType(), event.entityRef());
+    }
+
     /**
      * E1-08 — Réception snapshot par tranches.
      * Le payload contient : snapshotId, chunkIndex, totalChunks, items[].

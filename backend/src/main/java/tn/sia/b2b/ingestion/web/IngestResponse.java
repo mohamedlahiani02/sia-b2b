@@ -10,8 +10,8 @@ import java.util.UUID;
 public record IngestResponse(
     @JsonProperty("results") List<ElementResultView> results
 ) {
-    public IngestResponse(List<ElementResult> raw) {
-        this(raw.stream().map(ElementResultView::from).toList());
+    public static IngestResponse from(List<ElementResult> raw) {
+        return new IngestResponse(raw.stream().map(ElementResultView::from).toList());
     }
 
     public record ElementResultView(

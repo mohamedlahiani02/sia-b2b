@@ -41,13 +41,13 @@ public class EventIngestionService {
     public enum IngestStatus { ACCEPTED, DUPLICATE, REJECTED, SCHEMA_UNSUPPORTED }
 
     public record ElementResult(UUID eventId, IngestStatus status, String errorCode, String error) {
-        static ElementResult accepted(UUID id) {
+        public static ElementResult accepted(UUID id) {
             return new ElementResult(id, IngestStatus.ACCEPTED, null, null);
         }
-        static ElementResult duplicate(UUID id) {
+        public static ElementResult duplicate(UUID id) {
             return new ElementResult(id, IngestStatus.DUPLICATE, null, null);
         }
-        static ElementResult rejected(UUID id, ErrorCode code, String message) {
+        public static ElementResult rejected(UUID id, ErrorCode code, String message) {
             return new ElementResult(id, IngestStatus.REJECTED, code.name(), message);
         }
     }

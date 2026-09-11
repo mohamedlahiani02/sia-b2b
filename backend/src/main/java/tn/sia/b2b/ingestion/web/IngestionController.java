@@ -101,6 +101,6 @@ public class IngestionController {
             results.add(result);
         }
 
-        return ResponseEntity.status(207).body(new IngestResponse(results));
+        return ResponseEntity.status(207).body(IngestResponse.from(results));
     }
 }
