@@ -28,18 +28,18 @@ Ne génère pas de code de production. Génère uniquement un rapport structuré
 - Quel est l'identifiant unique d'un client/compte dans YME ?
   (numéro de compte, code tiers, matricule fiscal, autre ?)
 - Est-ce un entier, une chaîne, un code alphanumérique ? Donne un exemple réel anonymisé.
-- Ce code est-il stable dans le temps ou peut-il changer ?
-- Quels autres champs identifient un client ? (raison sociale, adresse, encours, tarif rattaché)
-- Y a-t-il une notion de "tarif client" ou "catégorie tarifaire" rattachée au compte ?
+- ~~Y a-t-il une notion de "tarif client" ou "catégorie tarifaire" rattachée au compte ?~~ **✅ NON — confirmé.**
+- ~~Ce code est-il stable dans le temps ou peut-il changer ?~~ **✅ STABLE — confirmé.**
+- Quels autres champs identifient un client ? (raison sociale, adresse, encours)
 
 ### 2. Catalogue produit (TBD-01)
 
 - Quel est l'identifiant unique d'un article/produit dans YME ?
   (référence, code article, EAN, autre ?)
-- Quels champs décrivent un produit ? (libellé, famille, sous-famille, marque, conditionnement, unité)
-- Y a-t-il une notion de "conditionnement" (quantité minimale de commande, multiple de commande) ?
+- Quels champs décrivent un produit ? (libellé, famille, sous-famille, marque, unité)
+- ~~Y a-t-il une notion de "conditionnement" (quantité minimale de commande, multiple) ?~~ **✅ NON — confirmé.**
+- ~~Y a-t-il des images produit dans YME ?~~ **✅ NON — confirmé. Placeholder générique côté frontend.**
 - Un produit peut-il être désactivé/retiré du catalogue ? Comment YME le signale-t-il ?
-- Y a-t-il des images produit dans YME ? Si oui, sous quelle forme (chemin, URL, blob) ?
 
 ### 3. Stock (TBD-02)
 
@@ -53,10 +53,10 @@ Ne génère pas de code de production. Génère uniquement un rapport structuré
 
 ### 4. Tarification (TBD-03 + TBD-09 + TBD-10)
 
-- Comment YME calcule-t-il le prix d'un article pour un client donné ?
-  (prix catalogue + remise client, tarif dédié, grille tarifaire, autre ?)
-- Y a-t-il plusieurs niveaux de remise qui se cumulent ? (remise client + remise famille + promotion)
-  Si oui, dans quel ordre s'appliquent-ils ?
+- Comment YME stocke-t-il le prix d'un article ?
+  (prix catalogue unique par article, ou grille par famille ?)
+- ~~Y a-t-il une catégorie tarifaire rattachée au compte client ?~~ **✅ NON — confirmé. Prix porté par l'article.**
+- ~~Y a-t-il plusieurs niveaux de remise qui se cumulent ?~~ **✅ SIMPLIFIÉ — pas de multi-niveaux côté client. Confirmer si remise par article/famille existe.**
 - La devise est-elle toujours le dinar tunisien (TND) ? Le prix a-t-il toujours 3 décimales ?
 - Les prix TTC existent-ils dans YME ou tout est HT ?
 - Comment YME notifie-t-il un changement de prix ?
